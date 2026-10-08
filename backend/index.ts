@@ -105,7 +105,7 @@ Bun.serve({
         const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent';
         const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},body:JSON.stringify({
           contents:[{role:'user',parts:[{text,speech_metadata:{style:'natural, warm, caring, conversational Spanish voice for a personal AI companion'}}]}],
-          generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{voice:selected}},languageCode:'es-ES'}
+          generationConfig:{responseModalities:['AUDIO'],speechConfig:{languageCode:'es-ES',voiceConfig:{voice:selected}}}
         })});
         const data=await r.json().catch(()=>({}));
         const audio=data?.candidates?.[0]?.content?.parts?.find(p=>p?.inlineData?.data)?.inlineData?.data;
