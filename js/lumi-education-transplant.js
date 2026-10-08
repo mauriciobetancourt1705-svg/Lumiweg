@@ -24,7 +24,7 @@
   }
   function openExternal(url){
     if(window.Lumi?.openExternal)return window.Lumi.openExternal(url);
-    window.open(url,'_blank','noopener');
+    openExternal(url);
   }
   window.__lumiEducation={state,sync,render,toast,openExternal};
 const LUMI_VOICES=[
@@ -126,9 +126,6 @@ function normSpeech(t){return String(t||'').toLowerCase().replace(new RegExp('[^
   const x=String(t||'').replace(/[*#_]/g,'').replace(/\s+/g,' ').trim();
   if(!x)return;
   voiceSpeaking=true;updateLumiCallUI();
-  if(window.AndroidLumi&&typeof window.AndroidLumi.speak==='function'){
-    try{window.AndroidLumi.speak(x);voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,220);else if(voiceConversation)setTimeout(startVoiceLoop,180);return}catch{}
-  }
   try{
     const r=await fetch(AI_ENDPOINT.replace(/\/chat$/,'/tts'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:x,voice:currentLumiVoice()})});
     const d=await r.json().catch(()=>({}));
@@ -140,6 +137,7 @@ function normSpeech(t){return String(t||'').toLowerCase().replace(new RegExp('[^
       await audio.play();return;
     }
   }catch{}
+  if(window.AndroidLumi&&typeof window.AndroidLumi.speak==='function'){try{window.AndroidLumi.speak(x);return}catch{}}
   try{
     if(window.speechSynthesis){
       speechSynthesis.cancel();
