@@ -130,6 +130,8 @@ public class MainActivity extends Activity {
         @android.webkit.JavascriptInterface public boolean isOverlayGranted() { return MainActivity.this.isOverlayGranted(); }
         @android.webkit.JavascriptInterface public void startAssistantMode() { MainActivity.this.startAssistantMode(); }
         @android.webkit.JavascriptInterface public void stopAssistantMode() { MainActivity.this.stopAssistantMode(); }
+        @android.webkit.JavascriptInterface public void pauseAssistantMic() { MainActivity.this.pauseAssistantMic(); }
+        @android.webkit.JavascriptInterface public void resumeAssistantMic() { MainActivity.this.resumeAssistantMic(); }
         @android.webkit.JavascriptInterface public void openBatterySettings() { MainActivity.this.openBatterySettings(); }
     }
 
@@ -275,6 +277,18 @@ public class MainActivity extends Activity {
     public void stopAssistantMode() {
         stopService(new Intent(this, LumiMicService.class));
         if (webView != null) webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(false)", null);
+    }
+
+    public void pauseAssistantMic() {
+        stopService(new Intent(this, LumiMicService.class));
+    }
+
+    public void resumeAssistantMic() {
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return;
+        try {
+            Intent i = new Intent(this, LumiMicService.class);
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+        } catch (Exception ignored) {}
     }
 
     @android.webkit.JavascriptInterface
