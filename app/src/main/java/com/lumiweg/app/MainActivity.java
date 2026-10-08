@@ -357,6 +357,8 @@ public class MainActivity extends Activity {
             String html = readAssetText("index.html");
             html = html.replace("<script src=\"js/app.js\"></script>", "<script>" + readAssetText("js/app.js") + "</script>");
             html = html.replace("<script src=\"js/lumi-education-transplant.js\"></script>", "<script>" + readAssetText("js/lumi-education-transplant.js") + "</script>");
+            String logoSvg = readAssetText("icons/icon-192.svg");
+            html = html.replace("src=\"icons/icon-192.svg\"", "src=\"data:image/svg+xml;charset=UTF-8," + Uri.encode(logoSvg) + "\"");
             webView.loadDataWithBaseURL("https://lumi.local/", html, "text/html", "UTF-8", "https://lumi.local/");
         } catch (Exception e) {
             webView.loadUrl("file:///android_asset/index.html");
