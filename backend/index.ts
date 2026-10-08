@@ -35,7 +35,7 @@ function messages(message,history,system){
 async function callOpenAICompatible(name,baseUrl,key,model,message,history,system){
   if(!key||!baseUrl||!model)return null;
   try{
-    const url=baseUrl.replace(/\\/$/,'')+'/chat/completions';
+    const url=baseUrl.replace(/\/$/,'')+'/chat/completions';
     const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({
       model,
       messages:messages(message,history,system),
