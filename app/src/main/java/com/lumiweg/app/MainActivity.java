@@ -142,8 +142,6 @@ public class MainActivity extends Activity {
             sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
         }
 
-        @android.webkit.JavascriptInterface public boolean openYouTubeSearch(String query) { return MainActivity.this.openYouTubeSearch(query); }
-
         @android.webkit.JavascriptInterface public void openOverlaySettings() { MainActivity.this.openOverlaySettings(); }
         @android.webkit.JavascriptInterface public void openAccessibilitySettings() { MainActivity.this.openAccessibilitySettings(); }
         @android.webkit.JavascriptInterface public boolean isOverlayGranted() { return MainActivity.this.isOverlayGranted(); }
