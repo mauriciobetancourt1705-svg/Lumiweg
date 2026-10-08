@@ -18,37 +18,27 @@ Bienestar 24/7 · Voz · Memoria · Acciones · Todo en uno.
 ## Cómo probarla localmente
 
 ```bash
-cd lumi-web
 python -m http.server 8080
 # abre http://localhost:8080
 ```
 
 > Nota: la voz (STT/TTS) requiere Chrome/Edge y servirse por http/https (no file://).
 
-## Publicar en GitHub Pages
+## Compilación Android
 
-1. Crea un repositorio nuevo en GitHub (público).
-2. Sube todo el contenido de esta carpeta (`index.html` en la raíz).
-3. En el repo: **Settings → Pages → Source: rama `main` → carpeta `/ (root)` → Save**.
-4. En 1-2 minutos estará en `https://tuusuario.github.io/turepo/`
-
-## Convertir a app Android (opcional)
-
-Este PWA ya es instalable. Para Play Store puedes empaquetarlo con:
-- **Bubblewrap** o **PWABuilder** (pwabuilder.com) — genera el AAB desde la URL de GitHub Pages.
-- O reescribir la UI en **Kotlin + Jetpack Compose** reutilizando esta lógica como referencia.
+El flujo de GitHub Actions `.github/workflows/android.yml` compila el APK de depuración y lo publica como artefacto descargable cuando se actualiza la rama `lumi-only`. El APK se considera disponible únicamente después de que la ejecución termine correctamente y se verifique el artefacto.
 
 ## Estructura
 
 ```
-lumi-web/
-├── index.html        # Pantallas de la app (SPA)
-├── css/style.css     # Estética neón azul/morada
-├── js/app.js         # Cerebro de Lumi: chat, voz, tareas, calendario...
-├── manifest.json     # PWA
-├── sw.js             # Service worker (offline)
-├── icons/            # Íconos de la app
-└── README.md
+index.html
+css/style.css
+js/app.js
+manifest.json
+sw.js
+icons/
+app/
+.github/workflows/android.yml
 ```
 
 ---
