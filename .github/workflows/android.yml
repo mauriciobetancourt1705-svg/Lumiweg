@@ -2,7 +2,7 @@ name: Build Lumiweg Android APK
 
 on:
   push:
-    branches: ["main", "transplante-lumi-education"]
+    branches: ["main", "transplante-lumi-education", "lumi-only"]
   workflow_dispatch:
 
 permissions:
