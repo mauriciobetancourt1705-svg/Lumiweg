@@ -8,6 +8,7 @@
         android:label="Lumiweg — Asistente Virtual Total"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
+        android:icon="@drawable/lumi_icon"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
