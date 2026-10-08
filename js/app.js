@@ -3,7 +3,7 @@ const now=()=>new Date(),hm=()=>now().toTimeString().slice(0,5),name=()=>cfg.nam
 function apply(){document.documentElement.style.setProperty('--accent',cfg.accent);if($('#homeName'))$('#homeName').textContent=name();if($('#setName'))$('#setName').value=cfg.name||'';$$('.sw').forEach(x=>x.classList.toggle('on',!!cfg[x.dataset.k]))}
 function toast(m){const t=$('#toast');if(!t)return;t.textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2600)}
 function go(id){$$('.screen').forEach(x=>x.classList.remove('active'));const e=$('#'+id);if(e)e.classList.add('active');$$('.navbar button').forEach(b=>b.classList.toggle('active',b.dataset.s===id));if(id==='s-chat')renderChat(true);if(id==='s-tasks')renderTasks();if(id==='s-cal')renderCal();if(id==='s-media')renderPlaylist();if(id==='s-well')renderMood()}
-const AI_ENDPOINT=(localStorage.getItem('lumi_ai_endpoint')||'').trim();
+const AI_ENDPOINT=(localStorage.getItem('lumi_ai_endpoint')||'https://education-bloque4-test-production.up.railway.app/chat').trim();
 let aiBusy=false;
 function aiHistory(){return chat.slice(-12).map(m=>({role:m.who==='user'?'user':'assistant',content:String(m.text||'')}))}
 async function askAI(text){
