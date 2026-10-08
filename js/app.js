@@ -1,6 +1,6 @@
 const Lumi=(()=>{const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],get=(k,d)=>{try{return JSON.parse(localStorage.getItem('lumi_'+k))??d}catch{return d}},set=(k,v)=>localStorage.setItem('lumi_'+k,JSON.stringify(v));let cfg=get('cfg',{name:'',accent:'#7fe3ff',memory:true,voiceReplies:true,notify:true,alwaysListen:false,theme:'lumi'}),tasks=get('tasks',[]),events=get('events',[]),chat=get('chat',[]),month=0,day=null;if(!cfg||typeof cfg!=='object')cfg={name:'',accent:'#7fe3ff',memory:true,voiceReplies:false,notify:true};cfg={name:typeof cfg.name==='string'?cfg.name:'',accent:typeof cfg.accent==='string'?cfg.accent:'#7fe3ff',memory:cfg.memory!==false,voiceReplies:cfg.voiceReplies===true,notify:cfg.notify!==false,alwaysListen:cfg.alwaysListen===true,theme:['lumi','ocean','violet','midnight'].includes(cfg.theme)?cfg.theme:'lumi'};if(!Array.isArray(tasks))tasks=[];if(!Array.isArray(events))events=[];if(!Array.isArray(chat))chat=[];
 const now=()=>new Date(),hm=()=>now().toTimeString().slice(0,5),name=()=>cfg.name||'Mau',pad=n=>String(n).padStart(2,'0');
-function apply(){document.documentElement.style.setProperty('--accent',cfg.accent);document.body.dataset.theme=cfg.theme||'lumi';if($('#homeName'))$('#homeName').textContent=name();if($('#setName'))$('#setName').value=cfg.name||'';$('.sw').forEach(x=>x.classList.toggle('on',!!cfg[x.dataset.k]));$('[data-theme-card]').forEach(x=>x.classList.toggle('selected',x.dataset.themeCard===cfg.theme))}
+function apply(){document.documentElement.style.setProperty('--accent',cfg.accent);document.body.dataset.theme=cfg.theme||'lumi';if($('#homeName'))$('#homeName').textContent=name();if($('#setName'))$('#setName').value=cfg.name||'';$$('.sw').forEach(x=>x.classList.toggle('on',!!cfg[x.dataset.k]));$$('[data-theme-card]').forEach(x=>x.classList.toggle('selected',x.dataset.themeCard===cfg.theme))}
 let lumiGuideTimer=null;
 const SCREEN_GUIDES={
 's-home':['Lumi está contigo','Todo empieza aquí. Dime qué necesitas y lo hacemos juntos.'],
@@ -29,9 +29,9 @@ function dismissGuide(){$('#lumiGuide')?.classList.add('hidden');clearTimeout(lu
 function setCalendarGuide(text){const e=$('#calAssistantText');if(e)e.innerHTML=text}
 function toast(m){const t=$('#toast');if(!t)return;t.textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2600)}
 function go(id){
-  $(' .screen').forEach(x=>x.classList.remove('active'));
+  $$(' .screen').forEach(x=>x.classList.remove('active'));
   const e=$('#'+id);if(e)e.classList.add('active');
-  $(' .navbar button').forEach(b=>b.classList.toggle('active',b.dataset.s===id));
+  $$(' .navbar button').forEach(b=>b.classList.toggle('active',b.dataset.s===id));
   const g=SCREEN_GUIDES[id]||['Lumi', 'Estoy contigo.'];
   lumiState('idle',g[0]);guide(g[0],g[1]);
   if(id==='s-chat')renderChat(true);
