@@ -9,6 +9,8 @@
     messages:[],
     wellbeing:{checkins:[],messages:[]},
     media:{mood:'calma',favorites:[]},
+    grades:[],
+    support:{requests:[]},
     extras:{}
   };
   function sync(){
@@ -24,7 +26,9 @@
   }
   function openExternal(url){
     if(window.Lumi?.openExternal)return window.Lumi.openExternal(url);
-    openExternal(url);
+    if(window.AndroidLumi?.openExternal)return window.AndroidLumi.openExternal(url);
+    if(/^https?:\/\//i.test(String(url||'')))return window.open(url,'_blank','noopener');
+    return false;
   }
   window.__lumiEducation={state,sync,render,toast,openExternal};
 const LUMI_VOICES=[
@@ -90,7 +94,7 @@ async function captureAcademicWithLumi(){
     if(u.semester)state.profile.semester=u.semester;
     if(u.creditsCompleted!=null)state.profile.creditsCompleted=Number(u.creditsCompleted);
     if(u.creditsTotal!=null)state.profile.creditsTotal=Number(u.creditsTotal);
-    if(Array.isArray(u.grades))u.grades.forEach(g=>{const rawMax=Number(g?.max||10),rawGrade=Number(g?.grade);const targetMax=Number(state.profile?.gradingScale)||10;state.grades.push({subject:String(g?.subject||'').trim(),grade:rawMax>targetMax?Math.round((rawGrade/rawMax)*targetMax*100)/100:rawGrade,max:targetMax,date:new Date().toISOString().slice(0,10)});});
+    if(Array.isArray(u.grades))u.grades.forEach(g=>{const rawMax=Number(g?.max||10),rawGrade=Number(g?.grade);const targetMax=Number(state.profile?.gradingScale)||10;(state.grades=Array.isArray(state.grades)?state.grades:[]).push({subject:String(g?.subject||'').trim(),grade:rawMax>targetMax?Math.round((rawGrade/rawMax)*targetMax*100)/100:rawGrade,max:targetMax,date:new Date().toISOString().slice(0,10)});});
     await sync(); render('academica'); alert('Lumi actualizó tu vida académica.');
   }catch(e){alert('No se pudo actualizar la vida académica.');}
 }
@@ -125,7 +129,7 @@ async function ask(message,which='ia',fromVoice=false,privateCall=false){
   }
 }
 function checkin(t){state.wellbeing.checkins.push({text:t,date:new Date().toISOString()});ask(t,'bienestar')}
-async function requestSupport(topic){const detail=prompt('¿Qué necesitas?')||'';if(!detail)return;try{const r=await fetch('/api/v1/support/request',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({topic,detail})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error('support_failed');state.support.requests.push({topic,detail,status:d.status||'recibida',response:d.response||'',date:new Date().toISOString()});sync();toast('Solicitud recibida');render('apoyo');}catch{state.support.requests.push({topic,detail,status:'pendiente',date:new Date().toISOString()});sync();toast('Solicitud guardada localmente');render('apoyo');}}
+async function requestSupport(topic){const detail=prompt('¿Qué necesitas?')||'';if(!detail)return;try{const r=await fetch('/api/v1/support/request',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({topic,detail})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error('support_failed');(state.support=state.support||{requests:[]},state.support.requests=Array.isArray(state.support.requests)?state.support.requests:[]).push({topic,detail,status:d.status||'recibida',response:d.response||'',date:new Date().toISOString()});sync();toast('Solicitud recibida');render('apoyo');}catch{(state.support=state.support||{requests:[]},state.support.requests=Array.isArray(state.support.requests)?state.support.requests:[]).push({topic,detail,status:'pendiente',date:new Date().toISOString()});sync();toast('Solicitud guardada localmente');render('apoyo');}}
 function normSpeech(t){return String(t||'').toLowerCase().replace(new RegExp('[^\\p{L}\\p{N}]+','gu'),' ').replace(/\\s+/g,' ').trim()} function collapseSpeech(t){const w=String(t||'').trim().split(/\\s+/).filter(Boolean);if(w.length<2)return String(t||'').trim();const o=[];for(let i=0;i<w.length;){let n=1;for(let z=1;z<=Math.floor((w.length-i)/2);z++){let a=w.slice(i,i+z).map(normSpeech),j=i+z,r=1;while(j+z<=w.length&&w.slice(j,j+z).map(normSpeech).every((x,k)=>x===a[k])){r++;j+=z}if(r>1)n=Math.max(n,z*r)}o.push(w.slice(i,i+n).join(' '));i+=n}return o.join(' ').replace(/\\s+/g,' ').trim()} function mergeSpeech(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!a)return b;if(!b)return a;const an=normSpeech(a),bn=normSpeech(b);if(an===bn||an.includes(bn))return a;if(bn.includes(an))return b;const aw=an.split(' '),bw=bn.split(' ');let k=0;for(let n=1;n<=Math.min(aw.length,bw.length);n++)if(aw.slice(-n).join(' ')===bw.slice(0,n).join(' '))k=n;return(a+' '+b.split(/\\s+/).slice(k).join(' ')).trim()} async function speakLumi(t){
   const x=String(t||'').replace(/[*#_]/g,'').replace(/\s+/g,' ').trim();
   if(!x)return;
