@@ -4,6 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.net.Uri;
@@ -30,6 +34,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private TextToSpeech tts;
     private SharedPreferences prefs;
+    private BroadcastReceiver speechReceiver;
 
     public class LumiBridge {
         @android.webkit.JavascriptInterface
@@ -189,6 +194,7 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         webView.addJavascriptInterface(new LumiBridge(), "AndroidLumi");
         setContentView(webView);
+        registerLumiSpeechReceiver();
 
         if (android.os.Build.VERSION.SDK_INT >= 23 &&
                 checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -196,6 +202,20 @@ public class MainActivity extends Activity {
         } else {
             loadLumi();
         }
+    }
+
+    private void registerLumiSpeechReceiver() {
+        speechReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context context, Intent intent) {
+                String text = intent.getStringExtra("text");
+                if (text == null || text.trim().isEmpty() || webView == null) return;
+                String js = "window.LumiNativeSpeech&&window.LumiNativeSpeech(" + org.json.JSONObject.quote(text.trim()) + ")";
+                webView.evaluateJavascript(js, null);
+            }
+        };
+        IntentFilter filter = new IntentFilter(LumiMicService.ACTION_SPEECH);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(speechReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(speechReceiver, filter);
     }
 
     private void notifySpeechDone() {
@@ -213,12 +233,57 @@ public class MainActivity extends Activity {
         if (requestCode == AUDIO_PERMISSION_REQUEST) loadLumi();
     }
 
+    @android.webkit.JavascriptInterface
+    public void openOverlaySettings() {
+        try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); }
+        catch (Exception e) { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)); }
+    }
+
+    @android.webkit.JavascriptInterface
+    public void openAccessibilitySettings() {
+        startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
+    }
+
+    @android.webkit.JavascriptInterface
+    public boolean isOverlayGranted() {
+        return Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(this);
+    }
+
+    @android.webkit.JavascriptInterface
+    public void startAssistantMode() {
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST);
+            return;
+        }
+        try {
+            Intent i = new Intent(this, LumiMicService.class);
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+            webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(true)", null);
+        } catch (Exception e) {
+            webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(false)", null);
+        }
+    }
+
+    @android.webkit.JavascriptInterface
+    public void stopAssistantMode() {
+        stopService(new Intent(this, LumiMicService.class));
+        if (webView != null) webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(false)", null);
+    }
+
+    @android.webkit.JavascriptInterface
+    public void openBatterySettings() {
+        try { startActivity(new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+        catch (Exception ignored) {}
+    }
+
     private void loadLumi() {
         webView.loadUrl("file:///android_asset/index.html");
     }
 
     @Override
     protected void onDestroy() {
+        try { if (speechReceiver != null) unregisterReceiver(speechReceiver); } catch (Exception ignored) {}
+        stopService(new Intent(this, LumiMicService.class));
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         if (webView != null) webView.destroy();
         super.onDestroy();
