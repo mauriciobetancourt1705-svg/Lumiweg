@@ -96,7 +96,7 @@ Bun.serve({
     if(url.pathname==='/tts'&&req.method==='POST'){
       if(!geminiKey)return json({error:'TTS unavailable'},503);
       let body;try{body=await req.json()}catch{return json({error:'Invalid JSON'},400)}
-      const text=typeof body?.text==='string'?body.text.replace(/\\s+/g,' ').trim():'';
+      const text=typeof body?.text==='string'?body.text.replace(/\s+/g,' ').trim():'';
       const voice=typeof body?.voice==='string'?body.voice.trim():'Kore';
       const allowed=['Gacrux','Sulafat','Vindemiatrix','Achird','Kore','Charon','Aoede','Schedar','Puck','Zephyr','Orus','Leda','Fenrir','Autonoe','Enceladus','Umbriel','Laomedeia','Iapetus','Erinome','Algenib','Rasalgethi','Alnilam','Schedar','Zubenelgenubi','Sadachbia','Sadaltager','Achernar'];
       const selected=allowed.includes(voice)?voice:'Kore';
