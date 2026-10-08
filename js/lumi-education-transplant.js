@@ -112,7 +112,7 @@ async function ask(message,which='ia',fromVoice=false,privateCall=false){
       return;
     }
     const hist=(which==='bienestar'?state.wellbeing.messages:state.messages).slice(-12);
-    const r=await fetch('/api/v1/ai/tutor',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({message:m,history:hist,mode:which==='bienestar'?'bienestar':mode,privateCall:false})});
+    const r=await fetch(window.LumiAIEndpoint||'/chat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({message:m,history:hist,mode:which==='bienestar'?'bienestar':mode,privateCall:false})});
     const d=await r.json();
     if(!r.ok)throw 0;
     if(which==='bienestar'){state.wellbeing.messages.push({role:'model',text:d.reply});sync();render(which);if(fromVoice)speakLumi(d.reply)}
