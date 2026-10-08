@@ -1,0 +1,6 @@
+{
+  "name": "lumiweg-ai-backend",
+  "private": true,
+  "packageManager": "bun@1.3.4",
+  "scripts": {"start": "bun run index.ts"}
+}
