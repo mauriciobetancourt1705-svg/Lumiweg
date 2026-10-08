@@ -28,6 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
     private static final int AUDIO_PERMISSION_REQUEST = 1001;
@@ -276,22 +279,27 @@ public class MainActivity extends Activity {
     }
 
     @android.webkit.JavascriptInterface
-    public void startAssistantMode() {
+    public boolean startAssistantMode() {
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST);
-            return;
+            return false;
         }
         try {
+            prefs.edit().putBoolean("assistant_active", true).apply();
             Intent i = new Intent(this, LumiMicService.class);
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
             webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(true)", null);
+            return true;
         } catch (Exception e) {
+            prefs.edit().putBoolean("assistant_active", false).apply();
             webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(false)", null);
+            return false;
         }
     }
 
     @android.webkit.JavascriptInterface
     public void stopAssistantMode() {
+        prefs.edit().putBoolean("assistant_active", false).apply();
         stopService(new Intent(this, LumiMicService.class));
         if (webView != null) webView.evaluateJavascript("window.LumiAssistantState&&window.LumiAssistantState(false)", null);
     }
@@ -314,14 +322,30 @@ public class MainActivity extends Activity {
         catch (Exception ignored) {}
     }
 
+    private String readAssetText(String path) throws Exception {
+        try (InputStream in = getAssets().open(path); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            return out.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
     private void loadLumi() {
-        webView.loadUrl("file:///android_asset/index.html");
+        try {
+            String html = readAssetText("index.html");
+            html = html.replace("<script src=\"js/app.js\"></script>", "<script>" + readAssetText("js/app.js") + "</script>");
+            html = html.replace("<script src=\"js/lumi-education-transplant.js\"></script>", "<script>" + readAssetText("js/lumi-education-transplant.js") + "</script>");
+            webView.loadDataWithBaseURL("https://lumi.local/", html, "text/html", "UTF-8", "https://lumi.local/");
+        } catch (Exception e) {
+            webView.loadUrl("file:///android_asset/index.html");
+        }
     }
 
     @Override
     protected void onDestroy() {
         try { if (speechReceiver != null) unregisterReceiver(speechReceiver); } catch (Exception ignored) {}
-        stopService(new Intent(this, LumiMicService.class));
+        if (prefs == null || !prefs.getBoolean("assistant_active", false)) stopService(new Intent(this, LumiMicService.class));
         if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
         if (webView != null) webView.destroy();
         super.onDestroy();
