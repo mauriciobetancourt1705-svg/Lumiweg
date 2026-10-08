@@ -4,6 +4,7 @@
   'use strict';
   const $=s=>document.querySelector(s);
   let token='',mode='aprender',busy=false;
+  const AI_ENDPOINT='https://education-bloque4-test-production.up.railway.app/chat';
   const state={
     messages:[],
     wellbeing:{checkins:[],messages:[]},
@@ -90,10 +91,69 @@ async function captureAcademicWithLumi(){
   }catch(e){alert('No se pudo actualizar la vida académica.');}
 }
 function markdown(s){let x=esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^### (.+)$/gm,'<strong>$1</strong>').replace(/^- (.+)$/gm,'• $1');return x.split(/\n\n+/).map(p=>'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('')}
-async function ask(message,which='ia',fromVoice=false,privateCall=false){const m=String(message||'').trim();if(!m||busy)return;if(which==='bienestar'&&lumiMediaCommand(m))return;if(which==='bienestar'&&!privateCall){state.wellbeing.messages.push({role:'user',text:m});render('bienestar')}else if(which!=='bienestar'){state.messages=state.messages||[];state.messages.push({role:'user',text:m});render('ia')}try{const hist=privateCall?(window.__lumiPrivateHistory||[]):(which==='bienestar'?state.wellbeing.messages:state.messages).slice(-12);const r=await fetch('/api/v1/ai/tutor',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({message:m,history:hist,mode:which==='bienestar'?'bienestar':mode,privateCall:Boolean(privateCall)})});const d=await r.json();if(!r.ok)throw 0;if(privateCall){window.__lumiPrivateHistory=hist.concat([{role:'user',text:m},{role:'model',text:d.reply}]).slice(-12);speakLumi(d.reply);return}if(which==='bienestar'){state.wellbeing.messages.push({role:'model',text:d.reply});sync();render(which);if(fromVoice)speakLumi(d.reply)}else{state.messages.push({role:'model',text:d.reply});sync();render(which)}}catch{const t=which==='bienestar'?'Estoy aquí contigo. En este momento no pude obtener la respuesta completa, pero no quiero dejarte solo con esto. Podemos intentarlo de nuevo.':'No pude conectar con el Tutor IA. Comprueba tu conexión y vuelve a intentarlo.';if(privateCall){window.__lumiPrivateHistory=(window.__lumiPrivateHistory||[]).concat([{role:'user',text:m},{role:'model',text:t}]).slice(-12);speakLumi(t);return}if(which==='bienestar'){state.wellbeing.messages.push({role:'model',text:t});render(which);if(fromVoice)speakLumi(t)}else{state.messages.push({role:'model',text:t});render(which)}}}
+async function ask(message,which='ia',fromVoice=false,privateCall=false){
+  const m=String(message||'').trim();
+  if(!m||busy)return;
+  if(which==='bienestar'&&lumiMediaCommand(m))return;
+  if(which==='bienestar'&&!privateCall){state.wellbeing.messages.push({role:'user',text:m});render('bienestar')}
+  else if(which!=='bienestar'){state.messages=state.messages||[];state.messages.push({role:'user',text:m});render('ia')}
+  try{
+    if(privateCall){
+      const hist=(window.__lumiPrivateHistory||[]).slice(-12).map(x=>({role:x?.role==='model'||x?.role==='assistant'?'assistant':'user',content:String(x?.text||x?.content||'').slice(0,4000)})).filter(x=>x.content);
+      const r=await fetch(AI_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m,history:hist,mode:'private',user:{locale:navigator.language||'es-ES'}})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok||!d.reply)throw new Error('private_ai_failed');
+      window.__lumiPrivateHistory=hist.concat([{role:'user',text:m},{role:'model',text:d.reply}]).slice(-12);
+      await speakLumi(d.reply);
+      return;
+    }
+    const hist=(which==='bienestar'?state.wellbeing.messages:state.messages).slice(-12);
+    const r=await fetch('/api/v1/ai/tutor',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({message:m,history:hist,mode:which==='bienestar'?'bienestar':mode,privateCall:false})});
+    const d=await r.json();
+    if(!r.ok)throw 0;
+    if(which==='bienestar'){state.wellbeing.messages.push({role:'model',text:d.reply});sync();render(which);if(fromVoice)speakLumi(d.reply)}
+    else{state.messages.push({role:'model',text:d.reply});sync();render(which)}
+  }catch{
+    const t=which==='bienestar'?'Estoy aquí contigo. En este momento no pude obtener la respuesta completa, pero podemos intentarlo de nuevo. ¿Qué es lo que más te está pesando en este momento?':'No pude conectar con el Tutor IA. Comprueba tu conexión y vuelve a intentarlo.';
+    if(privateCall){window.__lumiPrivateHistory=(window.__lumiPrivateHistory||[]).concat([{role:'user',text:m},{role:'model',text:t}]).slice(-12);await speakLumi(t);return}
+    if(which==='bienestar'){state.wellbeing.messages.push({role:'model',text:t});render(which);if(fromVoice)speakLumi(t)}
+    else{state.messages.push({role:'model',text:t});render(which)}
+  }
+}
 function checkin(t){state.wellbeing.checkins.push({text:t,date:new Date().toISOString()});ask(t,'bienestar')}
 async function requestSupport(topic){const detail=prompt('¿Qué necesitas?')||'';if(!detail)return;try{const r=await fetch('/api/v1/support/request',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({topic,detail})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error('support_failed');state.support.requests.push({topic,detail,status:d.status||'recibida',response:d.response||'',date:new Date().toISOString()});sync();toast('Solicitud recibida');render('apoyo');}catch{state.support.requests.push({topic,detail,status:'pendiente',date:new Date().toISOString()});sync();toast('Solicitud guardada localmente');render('apoyo');}}
-function normSpeech(t){return String(t||'').toLowerCase().replace(new RegExp('[^\\p{L}\\p{N}]+','gu'),' ').replace(/\\s+/g,' ').trim()} function collapseSpeech(t){const w=String(t||'').trim().split(/\\s+/).filter(Boolean);if(w.length<2)return String(t||'').trim();const o=[];for(let i=0;i<w.length;){let n=1;for(let z=1;z<=Math.floor((w.length-i)/2);z++){let a=w.slice(i,i+z).map(normSpeech),j=i+z,r=1;while(j+z<=w.length&&w.slice(j,j+z).map(normSpeech).every((x,k)=>x===a[k])){r++;j+=z}if(r>1)n=Math.max(n,z*r)}o.push(w.slice(i,i+n).join(' '));i+=n}return o.join(' ').replace(/\\s+/g,' ').trim()} function mergeSpeech(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!a)return b;if(!b)return a;const an=normSpeech(a),bn=normSpeech(b);if(an===bn||an.includes(bn))return a;if(bn.includes(an))return b;const aw=an.split(' '),bw=bn.split(' ');let k=0;for(let n=1;n<=Math.min(aw.length,bw.length);n++)if(aw.slice(-n).join(' ')===bw.slice(0,n).join(' '))k=n;return(a+' '+b.split(/\\s+/).slice(k).join(' ')).trim()} async function speakLumi(t){const x=String(t||'').replace(/[*#_]/g,'').replace(/\s+/g,' ').trim();if(!x)return;voiceSpeaking=true;updateLumiCallUI();try{const r=await fetch('/api/v1/ai/lumi-tts',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({text:x,voice:currentLumiVoice()})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.audioBase64)throw new Error('tts_failed');const bytes=Uint8Array.from(atob(d.audioBase64),c=>c.charCodeAt(0));const audio=new Audio(URL.createObjectURL(new Blob([bytes],{type:d.mimeType||'audio/wav'})));audio.onended=()=>{voiceSpeaking=false;updateLumiCallUI();URL.revokeObjectURL(audio.src);if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,180);else if(voiceConversation)setTimeout(startVoiceLoop,180)};audio.onerror=()=>{voiceSpeaking=false;updateLumiCallUI();URL.revokeObjectURL(audio.src);if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,120)};await audio.play();return;}catch{}try{if(window.speechSynthesis){speechSynthesis.cancel();const voices=speechSynthesis.getVoices();const v=voices.find(v=>/^es(-|_)/i.test(v.lang)&&/(Google|Microsoft|Natural|Neural)/i.test(v.name))||voices.find(v=>/^es(-|_)/i.test(v.lang));const u=new SpeechSynthesisUtterance(x);u.lang='es-ES';u.voice=v||null;u.rate=.90;u.pitch=.88;u.onend=()=>{voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,200);else if(voiceConversation)setTimeout(startVoiceLoop,150)};u.onerror=()=>{voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,150);else if(voiceConversation)setTimeout(startVoiceLoop,150)};speechSynthesis.speak(u);return;}}catch{}voiceSpeaking=false;if(voiceConversation)setTimeout(startVoiceLoop,150)} function stopVoice(){voiceConversation=false;voiceActive=false;try{voiceSession?.stop()}catch{};voiceSession=null;try{speechSynthesis?.cancel()}catch{};voiceSpeaking=false} async function ensureLumiMic(){if(window.SpeechRecognition||window.webkitSpeechRecognition)return true;if(!navigator.mediaDevices?.getUserMedia)return true;try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());return true}catch(e){toast('Lumi necesita permiso para usar el micrófono. Revisa el permiso del sitio.');return false}}
+function normSpeech(t){return String(t||'').toLowerCase().replace(new RegExp('[^\\p{L}\\p{N}]+','gu'),' ').replace(/\\s+/g,' ').trim()} function collapseSpeech(t){const w=String(t||'').trim().split(/\\s+/).filter(Boolean);if(w.length<2)return String(t||'').trim();const o=[];for(let i=0;i<w.length;){let n=1;for(let z=1;z<=Math.floor((w.length-i)/2);z++){let a=w.slice(i,i+z).map(normSpeech),j=i+z,r=1;while(j+z<=w.length&&w.slice(j,j+z).map(normSpeech).every((x,k)=>x===a[k])){r++;j+=z}if(r>1)n=Math.max(n,z*r)}o.push(w.slice(i,i+n).join(' '));i+=n}return o.join(' ').replace(/\\s+/g,' ').trim()} function mergeSpeech(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!a)return b;if(!b)return a;const an=normSpeech(a),bn=normSpeech(b);if(an===bn||an.includes(bn))return a;if(bn.includes(an))return b;const aw=an.split(' '),bw=bn.split(' ');let k=0;for(let n=1;n<=Math.min(aw.length,bw.length);n++)if(aw.slice(-n).join(' ')===bw.slice(0,n).join(' '))k=n;return(a+' '+b.split(/\\s+/).slice(k).join(' ')).trim()} async function speakLumi(t){
+  const x=String(t||'').replace(/[*#_]/g,'').replace(/\s+/g,' ').trim();
+  if(!x)return;
+  voiceSpeaking=true;updateLumiCallUI();
+  if(window.AndroidLumi&&typeof window.AndroidLumi.speak==='function'){
+    try{window.AndroidLumi.speak(x);voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,220);else if(voiceConversation)setTimeout(startVoiceLoop,180);return}catch{}
+  }
+  try{
+    const r=await fetch(AI_ENDPOINT.replace(/\/chat$/,'/tts'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:x,voice:currentLumiVoice()})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.audioBase64){
+      const bytes=Uint8Array.from(atob(d.audioBase64),c=>c.charCodeAt(0));
+      const audio=new Audio(URL.createObjectURL(new Blob([bytes],{type:d.mimeType||'audio/wav'})));
+      audio.onended=()=>{voiceSpeaking=false;updateLumiCallUI();URL.revokeObjectURL(audio.src);if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,180);else if(voiceConversation)setTimeout(startVoiceLoop,180)};
+      audio.onerror=()=>{voiceSpeaking=false;updateLumiCallUI();URL.revokeObjectURL(audio.src);if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,120)};
+      await audio.play();return;
+    }
+  }catch{}
+  try{
+    if(window.speechSynthesis){
+      speechSynthesis.cancel();
+      const voices=speechSynthesis.getVoices();
+      const v=voices.find(v=>/^es(-|_)/i.test(v.lang)&&/(Google|Microsoft|Natural|Neural)/i.test(v.name))||voices.find(v=>/^es(-|_)/i.test(v.lang));
+      const u=new SpeechSynthesisUtterance(x);u.lang='es-ES';u.voice=v||null;u.rate=.90;u.pitch=.88;
+      u.onend=()=>{voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,200);else if(voiceConversation)setTimeout(startVoiceLoop,150)};
+      u.onerror=()=>{voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,150);else if(voiceConversation)setTimeout(startVoiceLoop,150)};
+      speechSynthesis.speak(u);return;
+    }
+  }catch{}
+  voiceSpeaking=false;updateLumiCallUI();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,200);else if(voiceConversation)setTimeout(startVoiceLoop,150)
+}
+function stopVoice(){voiceConversation=false;voiceActive=false;try{voiceSession?.stop()}catch{};voiceSession=null;try{speechSynthesis?.cancel()}catch{};voiceSpeaking=false} async function ensureLumiMic(){if(window.SpeechRecognition||window.webkitSpeechRecognition)return true;if(!navigator.mediaDevices?.getUserMedia)return true;try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());return true}catch(e){toast('Lumi necesita permiso para usar el micrófono. Revisa el permiso del sitio.');return false}}
 function scheduleLumiVoiceRestart(privateMode=false,delay=260){clearTimeout(voiceRestartTimer);voiceRestartTimer=setTimeout(()=>{voiceRestartTimer=null;if(privateMode)startPrivateVoiceLoop();else startVoiceLoop()},delay)}
 async function startVoiceLoop(){if(!voiceConversation||voiceSpeaking||voiceActive)return;const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Este navegador no admite reconocimiento de voz para Lumi.');voiceConversation=false;return}const r=new SR();voiceSession=r;r.lang='es-ES';r.continuous=false;r.interimResults=false;r.maxAlternatives=1;let text='',ended=false;voiceActive=true;updateLumiCallUI();r.onstart=()=>{updateLumiCallUI();toast('Lumi te escucha… habla ahora')};r.onresult=e=>{text=collapseSpeech(e.results?.[0]?.[0]?.transcript||'')};r.onerror=e=>{if(voiceSession!==r)return;ended=true;voiceActive=false;updateLumiCallUI();if(e?.error==='not-allowed'||e?.error==='service-not-allowed'){toast('El micrófono de Lumi no tiene permiso.');voiceConversation=false;return}if(e?.error==='audio-capture')toast('El navegador perdió la entrada de audio. Reintentando…')};r.onend=()=>{if(voiceSession!==r)return;voiceSession=null;voiceActive=false;updateLumiCallUI();const m=collapseSpeech(text);text='';if(m&&voiceConversation&&!voiceSpeaking){$('#wellmsg').value='';ask(m,'bienestar',true)}else if(voiceConversation&&!voiceSpeaking)scheduleLumiVoiceRestart(false,ended?500:250)};try{r.start()}catch{voiceActive=false;voiceSession=null;if(voiceConversation&&!voiceSpeaking)scheduleLumiVoiceRestart(false,600)}}
 function startVoice(){if(voiceConversation||voiceActive){stopVoice();toast('He dejado de escuchar.');render('bienestar');return}voiceConversation=true;startVoiceLoop();render('bienestar')}
