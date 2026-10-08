@@ -38,7 +38,7 @@ const LUMI_VOICES=[
 {id:'Schedar',name:'Lumi Equilibrada',desc:'Equilibrada para todo momento'}
 ];
 function currentLumiVoice(){return state.extras?.lumiVoice||localStorage.getItem('lumi_voice_v1')||'Gacrux'}
-function setLumiVoice(id,preview=true){const valid=LUMI_VOICES.some(v=>v.id===id)?id:'Gacrux';state.extras={...(state.extras||{}),lumiVoice:valid};localStorage.setItem('lumi_voice_v1',valid);sync();render('bienestar');if(preview)setTimeout(()=>speakLumi('Hola, soy Lumi. Esta es la voz que seleccionaste.'),80)}
+function setLumiVoice(id,preview=true,renderAfter=true){const valid=LUMI_VOICES.some(v=>v.id===id)?id:'Gacrux';state.extras={...(state.extras||{}),lumiVoice:valid};localStorage.setItem('lumi_voice_v1',valid);sync();if(renderAfter)render('bienestar');if(preview)setTimeout(()=>speakLumi('Hola, soy Lumi. Esta es la voz que seleccionaste.'),80)}
 function chooseLumiVoice(){const current=currentLumiVoice();const options=LUMI_VOICES.map((v,i)=>(i+1)+'. '+v.name+' — '+v.desc).join('\\n');const raw=prompt('Elige la voz de Lumi:\\n\\n'+options+'\\n\\nVoz actual: '+(LUMI_VOICES.find(v=>v.id===current)?.name||current),String(LUMI_VOICES.findIndex(v=>v.id===current)+1));if(raw===null)return;const v=LUMI_VOICES[Number(raw)-1];if(!v){toast('Opción de voz no válida.');return}setLumiVoice(v.id,true)}
 function lumiMediaCommand(message){
   const raw=String(message||'').trim();
