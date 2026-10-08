@@ -99,6 +99,23 @@ public class MainActivity extends Activity {
         }
 
         @android.webkit.JavascriptInterface
+        public boolean openYouTubeSearch(String query) {
+            String q = query == null ? "" : query.trim();
+            String target = q.isEmpty() ? "https://www.youtube.com/" : "https://www.youtube.com/results?search_query=" + Uri.encode(q);
+            try {
+                Intent youtube = new Intent(Intent.ACTION_VIEW, Uri.parse(target));
+                youtube.setPackage("com.google.android.youtube");
+                startActivity(youtube);
+                return true;
+            } catch (Exception ignored) {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(target)));
+                    return true;
+                } catch (Exception ignoredAgain) { return false; }
+            }
+        }
+
+        @android.webkit.JavascriptInterface
         public void volumeUp() {
             AudioManager am = (AudioManager)getSystemService(AUDIO_SERVICE);
             if (am != null) am.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
@@ -124,6 +141,8 @@ public class MainActivity extends Activity {
         public void mediaPlayPause() {
             sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
         }
+
+        @android.webkit.JavascriptInterface public boolean openYouTubeSearch(String query) { return MainActivity.this.openYouTubeSearch(query); }
 
         @android.webkit.JavascriptInterface public void openOverlaySettings() { MainActivity.this.openOverlaySettings(); }
         @android.webkit.JavascriptInterface public void openAccessibilitySettings() { MainActivity.this.openAccessibilitySettings(); }
