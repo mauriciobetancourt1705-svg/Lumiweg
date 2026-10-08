@@ -125,7 +125,7 @@ public class LumiMicService extends Service {
         running = true;
         if (recognizer == null) startRecognition();
         broadcastStatus("listening");
-        return START_NOT_STICKY;
+        return START_STICKY;
     }
 
     @Override public void onDestroy() {
