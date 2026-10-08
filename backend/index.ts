@@ -157,14 +157,21 @@ Bun.serve({
         return json({audioBase64:audio,mimeType:'audio/wav',voice:selected});
       }catch(e){console.warn('TTS failed',String(e?.message||e).slice(0,500));return json({error:'TTS unavailable'},502)}
     }
-    if(url.pathname!=='/chat'||req.method!=='POST')return json({error:'Not found'},404);
-    let body;try{body=await req.json()}catch{return json({error:'Invalid JSON'},400)}
-    const message=typeof body?.message==='string'?body.message.trim():'';
-    if(!message)return json({error:'message is required'},400);
-    const history=normalizeHistory(body?.history);
-    const system=buildSystem(body?.mode||'');
-    const result=await routeAI(message,history,system);
-    if(result.reply)return json(result);
-    return json(result,502);
+    if((url.pathname==='/chat'||url.pathname==='/api/v1/ai/academic-update')&&req.method==='POST'){
+      let body;try{body=await req.json()}catch{return json({error:'Invalid JSON'},400)}
+      const message=typeof body?.message==='string'?body.message.trim():'';
+      if(!message)return json({error:'message is required'},400);
+      const history=normalizeHistory(body?.history);
+      if(url.pathname==='/api/v1/ai/academic-update'){
+        const prompt='Extrae los datos académicos explícitos del mensaje y devuelve SOLO JSON válido con esta forma: {"update":{"university":"","campus":"","career":"","semester":"","creditsCompleted":null,"creditsTotal":null,"grades":[{"subject":"","grade":0,"max":10}]}}. No inventes datos. Si no hay dato académico concreto, devuelve {"update":null}. Mensaje: '+message;
+        const result=await routeAI(prompt,history,buildSystem('academic'));
+        if(!result.reply)return json({error:'AI providers unavailable',failures:result.failures||[]},502);
+        try{const clean=result.reply.replace(/^```(?:json)?\\s*/i,'').replace(/\\s*```$/,'');const parsed=JSON.parse(clean);if(!parsed.update)return json({error:'No academic update found'},422);return json({update:parsed.update,provider:result.provider,model:result.model});}catch{return json({error:'AI returned invalid academic JSON',provider:result.provider,model:result.model},502)}
+      }
+      const result=await routeAI(message,history,buildSystem(body?.mode||''));
+      if(result.reply)return json(result);
+      return json(result,502);
+    }
+    return json({error:'Not found'},404);
   }
 });
