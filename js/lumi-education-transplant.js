@@ -15,7 +15,7 @@
   }
   function toast(t){
     const e=$('#toast');
-    if(e){e.textContent=String(t||'');e.classList.remove('hidden');clearTimeout(window.__lumiEducationToast);window.__lumiEducationToast=setTimeout(()=>e.classList.add('hidden'),2600)}
+    if(e){e.textContent=String(t||'');e.classList.add('show');clearTimeout(window.__lumiEducationToast);window.__lumiEducationToast=setTimeout(()=>e.classList.remove('show'),2600)}
   }
   function render(v){
     const map={ia:'s-chat',bienestar:'s-well',media:'s-media'};
