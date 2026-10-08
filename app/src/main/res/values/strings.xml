@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumiweg — Asistente Virtual Total</string>
+    <string name="lumi_accessibility_description">Servicio opcional de accesibilidad de Lumi para acciones globales explícitas. No lee el contenido de otras aplicaciones.</string>
+</resources>
