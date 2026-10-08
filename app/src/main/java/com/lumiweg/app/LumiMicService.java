@@ -17,6 +17,7 @@ import java.util.Locale;
 
 public class LumiMicService extends Service {
     public static final String ACTION_SPEECH = "com.lumiweg.app.LUMI_SPEECH";
+    public static final String ACTION_STATUS = "com.lumiweg.app.LUMI_STATUS";
     private static final String CHANNEL_ID = "lumi_assistant";
     private static final int NOTIFICATION_ID = 701;
     private SpeechRecognizer recognizer;
@@ -40,7 +41,6 @@ public class LumiMicService extends Service {
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
-        startRecognition();
     }
 
     private void createChannel() {
@@ -72,13 +72,15 @@ public class LumiMicService extends Service {
                 @Override public void onEndOfSpeech() {}
                 @Override public void onPartialResults(Bundle partialResults) {}
                 @Override public void onEvent(int eventType, Bundle params) {}
-                @Override public void onError(int error) { scheduleRestart(); }
+                @Override public void onError(int error) { broadcastStatus("error:" + error); scheduleRestart(); }
                 @Override public void onResults(Bundle results) {
                     ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                     if (matches != null && !matches.isEmpty()) {
+                        String spoken = matches.get(0).trim();
+                        getSharedPreferences("lumi", MODE_PRIVATE).edit().putString("pending_speech", spoken).putLong("pending_speech_at", System.currentTimeMillis()).apply();
                         Intent i = new Intent(ACTION_SPEECH);
                         i.setPackage(getPackageName());
-                        i.putExtra("text", matches.get(0));
+                        i.putExtra("text", spoken);
                         sendBroadcast(i);
                     }
                     scheduleRestart();
@@ -105,6 +107,13 @@ public class LumiMicService extends Service {
         }, 650);
     }
 
+    private void broadcastStatus(String value) {
+        Intent i = new Intent(ACTION_STATUS);
+        i.setPackage(getPackageName());
+        i.putExtra("status", value);
+        sendBroadcast(i);
+    }
+
     private void broadcastError(String value) {
         Intent i = new Intent(ACTION_SPEECH);
         i.setPackage(getPackageName());
@@ -115,6 +124,7 @@ public class LumiMicService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         running = true;
         if (recognizer == null) startRecognition();
+        broadcastStatus("listening");
         return START_NOT_STICKY;
     }
 
