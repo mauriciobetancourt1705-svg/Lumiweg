@@ -65,13 +65,13 @@ function lumiMediaCommand(message){
 
   const searchTerm=movieIntent && !/pel[ií]cula|serie|trailer|episodio|documental/i.test(q) ? q+' película' : q;
   const url='https://www.youtube.com/results?search_query='+encodeURIComponent(searchTerm);
-  window.open(url,'_blank','noopener');
+  if(window.Lumi?.openExternal)window.Lumi.openExternal(url);else window.open(url,'_blank','noopener');
   const label=movieIntent?'Te abrí YouTube con la búsqueda de '+q+'.':'Te abrí YouTube con '+q+' para que puedas reproducirlo.';
   speakLumi(label);
   return true;
 }
 function setMood(mood){state.media={...(state.media||{}),mood};sync();render('media')}
-function openMedia(kind){const q=prompt(kind==='music'?'¿Qué música quieres escuchar?':'¿Qué película o serie quieres buscar?','');if(!q)return;const mood=state.media?.mood||'calma';const url=kind==='music'?'https://music.youtube.com/search?q='+encodeURIComponent(q+' '+mood):'https://www.justwatch.com/us/search?q='+encodeURIComponent(q);window.open(url,'_blank','noopener')}
+function openMedia(kind){const q=prompt(kind==='music'?'¿Qué música quieres escuchar?':'¿Qué película o serie quieres buscar?','');if(!q)return;const mood=state.media?.mood||'calma';const url=kind==='music'?'https://music.youtube.com/search?q='+encodeURIComponent(q+' '+mood):'https://www.justwatch.com/us/search?q='+encodeURIComponent(q);if(window.Lumi?.openExternal)window.Lumi.openExternal(url);else window.open(url,'_blank','noopener')}
 async function captureAcademicWithLumi(){
   const message=window.prompt('¿Qué dato académico quieres que Lumi registre? Ejemplo: Aprobé Contabilidad con 17.');
   if(!message)return;
