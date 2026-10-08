@@ -124,6 +124,13 @@ public class MainActivity extends Activity {
         public void mediaPlayPause() {
             sendMediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
         }
+
+        @android.webkit.JavascriptInterface public void openOverlaySettings() { MainActivity.this.openOverlaySettings(); }
+        @android.webkit.JavascriptInterface public void openAccessibilitySettings() { MainActivity.this.openAccessibilitySettings(); }
+        @android.webkit.JavascriptInterface public boolean isOverlayGranted() { return MainActivity.this.isOverlayGranted(); }
+        @android.webkit.JavascriptInterface public void startAssistantMode() { MainActivity.this.startAssistantMode(); }
+        @android.webkit.JavascriptInterface public void stopAssistantMode() { MainActivity.this.stopAssistantMode(); }
+        @android.webkit.JavascriptInterface public void openBatterySettings() { MainActivity.this.openBatterySettings(); }
     }
 
     private void sendMediaKey(int keyCode) {
