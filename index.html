@@ -54,6 +54,15 @@ body[data-theme="midnight"] #app{background:#03050b;--line:rgba(150,175,205,.45)
 body[data-theme="midnight"] .ref-card,body[data-theme="midnight"] .card,body[data-theme="midnight"] .life-card{background:linear-gradient(145deg,rgba(16,22,34,.95),rgba(7,10,18,.94));}
 body[data-theme="midnight"] .hello h1,body[data-theme="midnight"] .hello p,body[data-theme="midnight"] .comm h2,body[data-theme="midnight"] .life h2,body[data-theme="midnight"] .quick-ref h2{color:#dbe7f5}
 
+/* ===== LUMI APP ICONS / DYNAMIC LAUNCH ===== */
+.app-card .ci{position:relative;overflow:hidden;isolation:isolate}
+.app-logo{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 0 7px rgba(90,230,255,.38));transition:transform .35s cubic-bezier(.2,.8,.2,1),filter .35s}
+.app-fallback{display:none;font-size:1.55rem}
+.app-card:hover .app-logo{transform:scale(1.12) rotate(-3deg);filter:drop-shadow(0 0 12px rgba(100,235,255,.72))}
+.app-card.app-launch{transform:scale(.96);border-color:rgba(104,238,255,.9);box-shadow:0 0 28px rgba(73,225,255,.3),inset 0 0 25px rgba(100,75,255,.15)}
+.app-card.app-launch .ci{animation:appLaunch .62s cubic-bezier(.2,.8,.2,1)}
+.app-card.app-launch .app-logo{transform:scale(1.28);filter:drop-shadow(0 0 18px rgba(110,240,255,.9)) drop-shadow(0 0 28px rgba(185,80,255,.5))}
+@keyframes appLaunch{0%{transform:scale(1);filter:brightness(1)}35%{transform:scale(1.12);filter:brightness(1.45)}70%{transform:scale(.98) rotate(2deg);filter:brightness(1.15)}100%{transform:scale(1)}}
 /* ===== LUMI DYNAMIC UI / PHASE 1 ===== */
 :root{--motion:.34s;--glow:rgba(79,232,255,.45)}
 button,.card,.ref-card,.life-card,.mini,.track,.theme-card,.ck{transition:transform var(--motion) cubic-bezier(.2,.8,.2,1),box-shadow var(--motion),border-color var(--motion),background var(--motion),filter var(--motion)}
