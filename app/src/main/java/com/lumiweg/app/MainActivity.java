@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
+import java.util.Locale;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -15,8 +17,23 @@ import android.webkit.WebViewClient;
 public class MainActivity extends Activity {
     private static final int AUDIO_PERMISSION_REQUEST = 1001;
     private WebView webView;
+    private TextToSpeech tts;
 
     public class LumiBridge {
+        @android.webkit.JavascriptInterface
+        public void speak(String text) {
+            if (text == null || text.trim().isEmpty()) return;
+            runOnUiThread(() -> {
+                if (tts == null) return;
+                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lumi");
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void stopSpeaking() {
+            runOnUiThread(() -> { if (tts != null) tts.stop(); });
+        }
+
         @android.webkit.JavascriptInterface
         public void openExternal(String url) {
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return;
@@ -30,6 +47,17 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        tts = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                int result = tts.setLanguage(new Locale("es", "ES"));
+                tts.setSpeechRate(0.98f);
+                tts.setPitch(1.02f);
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts.setLanguage(Locale.getDefault());
+                }
+            }
+        });
 
         webView = new WebView(this);
         webView.setWebViewClient(new WebViewClient());
@@ -82,5 +110,12 @@ public class MainActivity extends Activity {
 
     private void loadLumi() {
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (tts != null) { tts.stop(); tts.shutdown(); tts = null; }
+        if (webView != null) webView.destroy();
+        super.onDestroy();
     }
 }
