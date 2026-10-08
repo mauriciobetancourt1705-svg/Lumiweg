@@ -26,7 +26,10 @@ public class LumiMicService extends Service {
     @Override public void onCreate() {
         super.onCreate();
         createChannel();
-        Notification notification = new Notification.Builder(this, CHANNEL_ID)
+        Notification.Builder nb = Build.VERSION.SDK_INT >= 26
+            ? new Notification.Builder(this, CHANNEL_ID)
+            : new Notification.Builder(this);
+        Notification notification = nb
             .setContentTitle("Lumi está activa")
             .setContentText("Lumi puede escucharte mientras usas otras aplicaciones.")
             .setSmallIcon(R.drawable.lumi_original)
