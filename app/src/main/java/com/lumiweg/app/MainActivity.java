@@ -153,6 +153,27 @@ public class MainActivity extends Activity {
         @android.webkit.JavascriptInterface public void pauseAssistantMic() { MainActivity.this.pauseAssistantMic(); }
         @android.webkit.JavascriptInterface public void resumeAssistantMic() { MainActivity.this.resumeAssistantMic(); }
         @android.webkit.JavascriptInterface public void openBatterySettings() { MainActivity.this.openBatterySettings(); }
+        @android.webkit.JavascriptInterface public boolean androidBack() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.goBack(); }
+        @android.webkit.JavascriptInterface public boolean androidHome() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.goHome(); }
+        @android.webkit.JavascriptInterface public boolean androidRecents() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.openRecents(); }
+        @android.webkit.JavascriptInterface public boolean androidNotifications() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.openNotifications(); }
+        @android.webkit.JavascriptInterface public boolean androidQuickSettings() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.openQuickSettings(); }
+        @android.webkit.JavascriptInterface public boolean clickText(String text) { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.clickText(text); }
+        @android.webkit.JavascriptInterface public boolean setFocusedText(String text) { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.setText(text); }
+        @android.webkit.JavascriptInterface public boolean scrollForward() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.scrollForward(); }
+        @android.webkit.JavascriptInterface public boolean scrollBackward() { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.scrollBackward(); }
+        @android.webkit.JavascriptInterface public boolean tapScreen(float x, float y) { return LumiAccessibilityService.instance != null && LumiAccessibilityService.instance.tap(x,y); }
+        @android.webkit.JavascriptInterface public String readScreen() { return LumiAccessibilityService.instance == null ? "[]" : LumiAccessibilityService.instance.dumpUi(); }
+        @android.webkit.JavascriptInterface public boolean launchApp(String packageName) {
+            if (packageName == null || packageName.trim().isEmpty()) return false;
+            try {
+                Intent launch = getPackageManager().getLaunchIntentForPackage(packageName.trim());
+                if (launch == null) return false;
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(launch);
+                return true;
+            } catch (Exception e) { return false; }
+        }
     }
 
     private void sendMediaKey(int keyCode) {
