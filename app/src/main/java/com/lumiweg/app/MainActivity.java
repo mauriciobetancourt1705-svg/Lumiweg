@@ -2,7 +2,9 @@ package com.lumiweg.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
@@ -13,6 +15,17 @@ import android.webkit.WebViewClient;
 public class MainActivity extends Activity {
     private static final int AUDIO_PERMISSION_REQUEST = 1001;
     private WebView webView;
+
+    public class LumiBridge {
+        @android.webkit.JavascriptInterface
+        public void openExternal(String url) {
+            if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return;
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +60,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        webView.addJavascriptInterface(new LumiBridge(), "AndroidLumi");
 
         setContentView(webView);
 
