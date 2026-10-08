@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.application'
+}
+
+def syncWebAssets = tasks.register("syncWebAssets", Copy) {
+    from(rootProject.projectDir) {
+        include "index.html"
+        include "css/**"
+        include "js/**"
+        include "manifest.json"
+        include "sw.js"
+        include "icons/**"
+    }
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(syncWebAssets)
+}
+
+android {
+    namespace 'com.lumiweg.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.lumiweg.app'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
