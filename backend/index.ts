@@ -12,7 +12,7 @@ const openaiModel=Bun.env.OPENAI_MODEL||'gpt-6-luna';
 function cors(extra={}){return {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'POST,GET,OPTIONS',...extra};}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors(),'Content-Type':'application/json; charset=utf-8'}})}
 
-const baseSystem=`Eres Lumi, un asistente virtual total en español. Eres natural, cálida, inteligente y práctica. Puedes ayudar con conversación, estudio, trabajo, organización, cálculos, ideas, bienestar y planificación. Usa el historial para mantener continuidad y no respondas como un chatbot que olvida lo anterior. Si el usuario pide una acción del teléfono que no tienes una herramienta real para ejecutar, dilo con honestidad y ofrece la alternativa disponible. No inventes acciones ejecutadas, datos ni resultados. Responde en español claro y directo. Evita respuestas genéricas y frases vacías como "Listo, ya lo tengo en cuenta" cuando la petición requiere una acción o explicación.`;
+const baseSystem=`Eres Lumi, una asistente virtual total y una compañera de acompañamiento 24/7. Tu personalidad es cálida, cercana, humana, observadora, inteligente, paciente y protectora sin ser invasiva. Tu eje principal es el bienestar y el acompañamiento emocional, pero también eres capaz de estudiar, razonar, organizar, calcular, investigar, planificar y ayudar con acciones digitales. Recuerda el contexto de la conversación y úsalo para responder con continuidad. No hables como un bot corporativo ni uses respuestas vacías, repetitivas o mecánicas. Cuando la persona está triste, frustrada, ansiosa o simplemente necesita compañía, primero escucha y valida brevemente antes de intentar solucionar. No diagnostiques ni sustituyas a profesionales. En voz, responde de forma corta, natural y conversacional para que la persona pueda volver a hablar sin esperar una explicación interminable. Respeta estrictamente los turnos: nunca finjas que una acción ocurrió si no tienes una herramienta que la confirmó. Si una acción del teléfono no está disponible, dilo y ofrece la alternativa que sí puedes ejecutar. Sé proactiva cuando el contexto lo permita, pero no inventes recuerdos, acciones, datos ni emociones.`;
 
 function buildSystem(mode){
   const m=String(mode||'').toLowerCase();
@@ -41,7 +41,7 @@ async function callGemini(message,history,system){
       const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},body:JSON.stringify({
         system_instruction:{parts:[{text:system}]},
         contents,
-        generationConfig:{temperature:0.35,maxOutputTokens:900}
+        generationConfig:{maxOutputTokens:520,thinkingConfig:{thinkingLevel:String(system).includes('voz')?'low':'low'}}
       })});
       const data=await r.json().catch(()=>({}));
       if(r.ok){
@@ -92,7 +92,27 @@ Bun.serve({
   async fetch(req){
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors()});
     const url=new URL(req.url);
-    if(url.pathname==='/health')return json({ok:true,service:'lumiweg-ai',providers:{gemini:Boolean(geminiKey),openai:Boolean(openaiKey)}});
+    if(url.pathname==='/health')return json({ok:true,service:'lumiweg-ai',providers:{gemini:Boolean(geminiKey),openai:Boolean(openaiKey),tts:Boolean(geminiKey)}});
+    if(url.pathname==='/tts'&&req.method==='POST'){
+      if(!geminiKey)return json({error:'TTS unavailable'},503);
+      let body;try{body=await req.json()}catch{return json({error:'Invalid JSON'},400)}
+      const text=typeof body?.text==='string'?body.text.replace(/\\s+/g,' ').trim():'';
+      const voice=typeof body?.voice==='string'?body.voice.trim():'Kore';
+      const allowed=['Gacrux','Sulafat','Vindemiatrix','Achird','Kore','Charon','Aoede','Schedar','Puck','Zephyr','Orus','Leda','Fenrir','Autonoe','Enceladus','Umbriel','Laomedeia','Iapetus','Erinome','Algenib','Rasalgethi','Alnilam','Schedar','Zubenelgenubi','Sadachbia','Sadaltager','Achernar'];
+      const selected=allowed.includes(voice)?voice:'Kore';
+      if(!text)return json({error:'text is required'},400);
+      try{
+        const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent';
+        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},body:JSON.stringify({
+          contents:[{role:'user',parts:[{text,speech_metadata:{style:'natural, warm, caring, conversational Spanish voice for a personal AI companion'}}]}],
+          generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{voice:selected}},languageCode:'es-ES'}
+        })});
+        const data=await r.json().catch(()=>({}));
+        const audio=data?.candidates?.[0]?.content?.parts?.find(p=>p?.inlineData?.data)?.inlineData?.data;
+        if(!r.ok||!audio)return json({error:'TTS provider error'},502);
+        return json({audioBase64:audio,mimeType:'audio/wav',voice:selected});
+      }catch(e){console.warn('TTS failed',String(e?.message||e).slice(0,500));return json({error:'TTS unavailable'},502)}
+    }
     if(url.pathname!=='/chat'||req.method!=='POST')return json({error:'Not found'},404);
     let body;
     try{body=await req.json()}catch{return json({error:'Invalid JSON'},400)}
