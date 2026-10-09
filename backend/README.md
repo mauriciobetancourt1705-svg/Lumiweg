@@ -12,10 +12,11 @@ Este backend es la única ruta de inteligencia artificial que debe utilizar el A
 
 ## Variables de entorno privadas
 
-Solo necesitas una clave para empezar; puedes añadir más como respaldo.
+Solo necesitas una clave para empezar; puedes añadir más como respaldo. El backend reconoce las variables configuradas y publica los modelos que cada proveedor habilita para esa clave.
 
 | Variable | Proveedor |
 |---|---|
+| `XAI_API_KEY` | xAI / Grok |
 | `GEMINI_API_KEY` | Google Gemini |
 | `GROQ_API_KEY` | Groq |
 | `OPENROUTER_API_KEY` | OpenRouter |
@@ -37,7 +38,7 @@ No escribas estas claves en archivos del repositorio, en commits, capturas de pa
 | GET | `/models` | Modelos disponibles |
 | POST | `/chat/completions` | Chat compatible con OpenAI y herramientas |
 
-La aplicación envía las solicitudes a `/chat/completions`; el backend selecciona el proveedor configurado y puede pasar al siguiente si uno falla.
+La aplicación envía las solicitudes a `/chat/completions`; el backend selecciona el proveedor configurado según el modelo pedido y puede pasar al siguiente si uno falla. Para usar Grok, selecciona un modelo `grok-*`; la clave `XAI_API_KEY` permanece únicamente en Railway.
 
 ## Despliegue
 
