@@ -10,6 +10,8 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -17,9 +19,11 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * MainActivity — el contenedor de Lumi.
@@ -171,6 +175,21 @@ public class MainActivity extends Activity {
                     try {
                         tts.setLanguage(new Locale("es", "ES"));
                         tts.setSpeechRate(1.0f);
+                        String savedVoice = getPreferences(MODE_PRIVATE).getString("lumi_tts_voice", "");
+                        if (!savedVoice.isEmpty() && tts.getVoices() != null) {
+                            for (Voice voice : tts.getVoices()) {
+                                if (savedVoice.equals(voice.getName())) { tts.setVoice(voice); break; }
+                            }
+                        }
+                        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                            @Override public void onStart(String utteranceId) { }
+                            @Override public void onDone(String utteranceId) {
+                                if ("lumi".equals(utteranceId)) evaluarJs("window.Lumi&&Lumi.onSpeechFinished&&Lumi.onSpeechFinished();");
+                            }
+                            @Override public void onError(String utteranceId) {
+                                if ("lumi".equals(utteranceId)) evaluarJs("window.Lumi&&Lumi.onSpeechFinished&&Lumi.onSpeechFinished();");
+                            }
+                        });
                     } catch (Exception ignored) {
                     }
                 }
@@ -188,6 +207,44 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {
             }
         });
+    }
+
+    public String vocesDisponibles() {
+        JSONArray out = new JSONArray();
+        try {
+            if (tts == null || tts.getVoices() == null) return out.toString();
+            for (Voice v : tts.getVoices()) {
+                Locale locale = v.getLocale();
+                if (locale == null || !"es".equalsIgnoreCase(locale.getLanguage())) continue;
+                JSONObject item = new JSONObject();
+                item.put("name", v.getName());
+                item.put("locale", locale.toLanguageTag());
+                item.put("network", v.isNetworkConnectionRequired());
+                out.put(item);
+            }
+        } catch (Exception ignored) { }
+        return out.toString();
+    }
+
+    public boolean seleccionarVoz(String voiceName) {
+        if (tts == null || voiceName == null) return false;
+        try {
+            Set<Voice> voices = tts.getVoices();
+            if (voices != null) for (Voice v : voices) {
+                if (voiceName.equals(v.getName()) && v.getLocale() != null
+                        && "es".equalsIgnoreCase(v.getLocale().getLanguage())) {
+                    if (tts.setVoice(v) == TextToSpeech.SUCCESS) {
+                        getPreferences(MODE_PRIVATE).edit().putString("lumi_tts_voice", v.getName()).apply();
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    public void detenerVoz() {
+        runOnUiThread(() -> { try { if (tts != null) tts.stop(); } catch (Exception ignored) { } });
     }
 
     /** STT nativo: el WebView de Android no tiene SpeechRecognition. */
