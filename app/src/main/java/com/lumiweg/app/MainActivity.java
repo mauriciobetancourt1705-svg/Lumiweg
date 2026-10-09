@@ -34,6 +34,9 @@ import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
     private static final int AUDIO_PERMISSION_REQUEST = 1001;
+    private static final int VOICE_RECOGNITION_REQUEST = 1002;
+    private volatile boolean ttsReady = false;
+    private volatile String pendingSpeech = "";
     private WebView webView;
     private TextToSpeech tts;
     private SharedPreferences prefs;
@@ -44,8 +47,30 @@ public class MainActivity extends Activity {
         public void speak(String text) {
             if (text == null || text.trim().isEmpty()) return;
             runOnUiThread(() -> {
-                if (tts == null) return;
-                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lumi");
+                if (!ttsReady || tts == null) { pendingSpeech = text; return; }
+                int result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lumi");
+                if (result == TextToSpeech.ERROR) notifySpeechDone();
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void startVoiceRecognition() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST);
+                    return;
+                }
+                try {
+                    Intent intent = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                    intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                    intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "es-ES");
+                    intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES");
+                    intent.putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Habla con Lumi");
+                    intent.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+                    startActivityForResult(intent, VOICE_RECOGNITION_REQUEST);
+                } catch (Exception e) {
+                    if (webView != null) webView.evaluateJavascript("window.LumiVoiceError&&window.LumiVoiceError('recognition_unavailable')", null);
+                }
             });
         }
 
@@ -190,7 +215,8 @@ public class MainActivity extends Activity {
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(new Locale("es", "ES"));
+                int languageStatus = tts.setLanguage(new Locale("es", "ES"));
+                ttsReady = languageStatus != TextToSpeech.LANG_MISSING_DATA && languageStatus != TextToSpeech.LANG_NOT_SUPPORTED;
                 tts.setSpeechRate(0.98f);
                 tts.setPitch(1.02f);
                 String savedVoice = prefs.getString("tts_voice", "");
@@ -204,7 +230,11 @@ public class MainActivity extends Activity {
                         }
                     } catch (Exception ignored) {}
                 }
-            }
+                if (!pendingSpeech.isEmpty() && ttsReady) {
+                    String queued = pendingSpeech; pendingSpeech = "";
+                    tts.speak(queued, TextToSpeech.QUEUE_FLUSH, null, "lumi");
+                }
+            } else { ttsReady = false; }
         });
 
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -266,6 +296,22 @@ public class MainActivity extends Activity {
         IntentFilter filter = new IntentFilter(LumiMicService.ACTION_SPEECH);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(speechReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(speechReceiver, filter);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == VOICE_RECOGNITION_REQUEST && webView != null) {
+            String spoken = "";
+            if (resultCode == RESULT_OK && data != null) {
+                ArrayList<String> matches = data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+                if (matches != null && !matches.isEmpty()) spoken = matches.get(0).trim();
+            }
+            String js = spoken.isEmpty()
+                ? "window.LumiVoiceError&&window.LumiVoiceError('no_speech')"
+                : "window.LumiOneShotSpeech&&window.LumiOneShotSpeech(" + JSONObject.quote(spoken) + ")";
+            webView.evaluateJavascript(js, null);
+        }
     }
 
     private void notifySpeechDone() {
