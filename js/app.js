@@ -282,7 +282,7 @@ const Lumi = (() => {
     if (!limpio) { onVoiceState('No entendí nada'); return; }
     onVoiceState(limpio);
     if ($('#chatIn')) $('#chatIn').value = limpio;
-    go('s-chat');
+    if (!callMode) go('s-chat');
     setTimeout(send, 150);
   }
 
