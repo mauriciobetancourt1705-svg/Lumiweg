@@ -23,6 +23,9 @@ public class LumiMicService extends Service {
     private SpeechRecognizer recognizer;
     private boolean running = false;
     private boolean restarting = false;
+    private int consecutiveErrors = 0;
+    private long lastAcceptedAt = 0L;
+    private String lastAcceptedText = "";
 
     @Override public void onCreate() {
         super.onCreate();
@@ -72,16 +75,29 @@ public class LumiMicService extends Service {
                 @Override public void onEndOfSpeech() {}
                 @Override public void onPartialResults(Bundle partialResults) {}
                 @Override public void onEvent(int eventType, Bundle params) {}
-                @Override public void onError(int error) { broadcastStatus("error:" + error); scheduleRestart(); }
+                @Override public void onError(int error) { broadcastStatus("error:" + error); consecutiveErrors = Math.min(consecutiveErrors + 1, 6); scheduleRestart(); }
                 @Override public void onResults(Bundle results) {
                     ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    consecutiveErrors = 0;
                     if (matches != null && !matches.isEmpty()) {
-                        String spoken = matches.get(0).trim();
-                        getSharedPreferences("lumi", MODE_PRIVATE).edit().putString("pending_speech", spoken).putLong("pending_speech_at", System.currentTimeMillis()).apply();
-                        Intent i = new Intent(ACTION_SPEECH);
-                        i.setPackage(getPackageName());
-                        i.putExtra("text", spoken);
-                        sendBroadcast(i);
+                        String spoken = matches.get(0).trim().replaceAll("\\s+", " ");
+                        String normalized = spoken.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N} ]", "").trim();
+                        int words = normalized.isEmpty() ? 0 : normalized.split("\\s+").length;
+                        long now = System.currentTimeMillis();
+                        // Ignore brief noises and duplicate recognition results. A single-word wake/command is allowed only for known intents.
+                        boolean knownSingleWord = normalized.matches("(lumi|hola|ayuda|detente|silencio|para|alto|atr[aá]s|inicio|volumen|siguiente|anterior)");
+                        boolean hasWakeWord = normalized.matches(".*\\blumi\\b.*");
+                        boolean useful = words >= 2 || knownSingleWord || hasWakeWord;
+                        boolean duplicate = normalized.equals(lastAcceptedText) && now - lastAcceptedAt < 3500L;
+                        if (useful && !duplicate) {
+                            lastAcceptedText = normalized;
+                            lastAcceptedAt = now;
+                            getSharedPreferences("lumi", MODE_PRIVATE).edit().putString("pending_speech", spoken).putLong("pending_speech_at", now).apply();
+                            Intent i = new Intent(ACTION_SPEECH);
+                            i.setPackage(getPackageName());
+                            i.putExtra("text", spoken);
+                            sendBroadcast(i);
+                        }
                     }
                     scheduleRestart();
                 }
@@ -104,7 +120,7 @@ public class LumiMicService extends Service {
         new android.os.Handler(getMainLooper()).postDelayed(() -> {
             restarting = false;
             if (running) startRecognition();
-        }, 650);
+        }, Math.min(1800, 650 + consecutiveErrors * 250));
     }
 
     private void broadcastStatus(String value) {
