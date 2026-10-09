@@ -215,8 +215,21 @@ public class MainActivity extends Activity {
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
+                // Try common Spanish locales; some Android devices do not ship es-ES voice data.
                 int languageStatus = tts.setLanguage(new Locale("es", "ES"));
+                if (languageStatus == TextToSpeech.LANG_MISSING_DATA || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    languageStatus = tts.setLanguage(new Locale("es", "MX"));
+                }
+                if (languageStatus == TextToSpeech.LANG_MISSING_DATA || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    languageStatus = tts.setLanguage(new Locale("es"));
+                }
                 ttsReady = languageStatus != TextToSpeech.LANG_MISSING_DATA && languageStatus != TextToSpeech.LANG_NOT_SUPPORTED;
+                if (Build.VERSION.SDK_INT >= 21) {
+                    tts.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build());
+                }
                 tts.setSpeechRate(0.98f);
                 tts.setPitch(1.02f);
                 String savedVoice = prefs.getString("tts_voice", "");
