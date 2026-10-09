@@ -144,7 +144,7 @@ const Lumi = (() => {
     });
     renderChat(true);
 
-    if (cfg.voiceReplies && res.texto) speak(res.texto);
+    if ((cfg.voiceReplies || callMode) && res.texto) speak(res.texto);
   }
 
   function contextoPersonal() {
@@ -164,7 +164,10 @@ const Lumi = (() => {
      VOZ
      ================================================================ */
   let rec = null;
+  let callMode = false;
+  let voiceCatalog = [];
   function toggleVoice() {
+    if (callMode) { stopCall(); return; }
     // En el APK la voz usa el reconocedor nativo de Android: el WebView no
     // implementa la Web Speech API, así que la ruta web solo sirve en Chrome.
     if (LumiDevice.hayNativo()) {
@@ -192,6 +195,81 @@ const Lumi = (() => {
   }
 
   function startDictation() { go('s-voice'); setTimeout(toggleVoice, 350); }
+
+  function startCall() {
+    if (callMode) return;
+    callMode = true;
+    cfg.voiceReplies = true;
+    set('cfg', cfg);
+    const v = $('#voiceState'); if (v) v.textContent = 'Preparando llamada…';
+    const b = $('#callBtn'); if (b) b.textContent = '⏹ Terminar llamada';
+    go('s-voice');
+    if (LumiDevice.hayNativo()) {
+      const r = LumiDevice.invocar('startListening');
+      if (r && r.ok) { onVoiceState('Lumi está escuchando. Habla con naturalidad.'); return; }
+      callMode = false;
+      if (b) b.textContent = '📞 Iniciar llamada con Lumi';
+      toast(r && r.error === 'permiso' ? 'Concede el permiso de micrófono' : 'No se pudo iniciar la escucha');
+      return;
+    }
+    callMode = false;
+    if (b) b.textContent = '📞 Iniciar llamada con Lumi';
+    toast('La llamada continua necesita el APK de Android');
+  }
+
+  function stopCall() {
+    callMode = false;
+    try { if (LumiDevice.hayNativo()) LumiDevice.invocar('stopListening'); } catch {}
+    try { if (LumiDevice.hayNativo()) LumiDevice.invocar('stopSpeaking'); } catch {}
+    const b = $('#callBtn'); if (b) b.textContent = '📞 Iniciar llamada con Lumi';
+    onVoiceState('Llamada finalizada');
+  }
+
+  function onSpeechFinished() {
+    if (!callMode) return;
+    // El TTS terminó: reabrir el micrófono para el siguiente turno.
+    setTimeout(() => {
+      if (!callMode || ocupado) return;
+      const r = LumiDevice.invocar('startListening');
+      if (!r || !r.ok) onVoiceState('No pude reactivar el micrófono. Toca para reintentar.');
+    }, 350);
+  }
+
+  function onVoiceRecognitionError() {
+    if (!callMode) return;
+    onVoiceState('No te escuché; vuelvo a intentarlo…');
+    setTimeout(() => {
+      if (!callMode || ocupado) return;
+      const r = LumiDevice.invocar('startListening');
+      if (!r || !r.ok) onVoiceState('No pude reactivar el micrófono.');
+    }, 900);
+  }
+
+  function loadVoices() {
+    const select = $('#voiceSelect');
+    if (!select) return;
+    if (!LumiDevice.hayNativo() || !window.LumiNative || typeof window.LumiNative.getVoices !== 'function') {
+      select.innerHTML = '<option value="">Voces del sistema disponibles en el APK</option>';
+      return;
+    }
+    try {
+      const raw = window.LumiNative.getVoices();
+      voiceCatalog = JSON.parse(raw || '[]');
+      if (!voiceCatalog.length) {
+        select.innerHTML = '<option value="">No se encontraron voces españolas instaladas</option>';
+        return;
+      }
+      const saved = localStorage.getItem('lumi_tts_voice') || '';
+      select.innerHTML = voiceCatalog.map(v => '<option value="' + esc(v.name) + '">' +
+        esc(v.name) + (v.network ? ' · online' : ' · local') + '</option>').join('');
+      if (saved && voiceCatalog.some(v => v.name === saved)) select.value = saved;
+      select.onchange = () => {
+        const ok = window.LumiNative.setVoice(select.value);
+        if (ok) { localStorage.setItem('lumi_tts_voice', select.value); toast('Voz de Lumi actualizada'); }
+        else toast('Android no pudo cambiar la voz');
+      };
+    } catch { select.innerHTML = '<option value="">No se pudieron cargar las voces</option>'; }
+  }
 
   /* Llamadas desde el lado nativo (MainActivity.java) */
   function onVoiceState(txt) {
@@ -610,7 +688,7 @@ const Lumi = (() => {
     saveName, rename, accent, toggle, wipe, openExternal,
     renderAI, saveKey, toggleProvider, setAccount, setProxy, testProvider, probarTodo, openLink,
     renderPerms, askPermission, openSetting, setMode,
-    onVoiceResult, onVoiceState
+    onVoiceResult, onVoiceState, startCall, stopCall, onSpeechFinished, onVoiceRecognitionError, loadVoices
   };
   window.Lumi = API;
   return API;
