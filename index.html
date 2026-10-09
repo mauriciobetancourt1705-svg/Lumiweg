@@ -61,11 +61,17 @@
   <!-- Voz -->
   <main class="screen" id="s-voice">
     <div class="screenhead"><button class="back" onclick="Lumi.go('s-home')">←</button><b>Voz</b><span></span></div>
-    <p class="voicestate" id="voiceState">Toca el orbe para hablar</p>
+    <p class="voicestate" id="voiceState">Toca el orbe para hablar o inicia una llamada</p>
     <div class="orb big pulse-fast" id="voiceOrb" onclick="Lumi.toggleVoice()">🎙️</div>
     <div class="wave" id="wave"></div>
     <div class="voicetranscript" id="voiceText"></div>
+    <button class="btn primary" id="callBtn" onclick="Lumi.startCall()">📞 Iniciar llamada con Lumi</button>
+    <div class="sec">Voz de Lumi</div>
+    <select class="kin" id="voiceSelect" aria-label="Seleccionar voz de Lumi" onchange="Lumi.loadVoices()">
+      <option value="">Cargando voces de Android…</option>
+    </select>
     <button class="btn" onclick="Lumi.speakTest()">🔊 Probar voz de Lumi</button>
+    <button class="btn ghost" onclick="Lumi.stopCall()">⏹ Detener escucha y voz</button>
   </main>
 
   <!-- Acciones rápidas -->
