@@ -1,73 +1,44 @@
-# Lumiweg — Backend de IA (opcional)
+# Lumiweg — Backend de IA
 
-Este backend **no es obligatorio**. La app funciona sola: guardas tus claves
-gratuitas en Ajustes → Motores de IA y Lumi habla directo con cada proveedor
-desde el teléfono.
+Este backend es la única ruta de inteligencia artificial que debe utilizar el APK. Las claves de los proveedores **no se escriben en la aplicación ni en GitHub**: se guardan como variables de entorno privadas del servicio desplegado (por ejemplo, Railway).
 
-Sirve para lo contrario: **no llevar ninguna clave dentro del APK**. El backend
-guarda las claves en variables de entorno del servidor y expone una API
-compatible con OpenAI. En la app se configura como proveedor «Backend propio».
+## Configuración en Railway
 
-## Antes estaba roto
+1. Despliega el servicio usando la carpeta `backend/` de este repositorio.
+2. En el servicio, abre **Variables** y agrega una o más claves de la tabla inferior.
+3. Despliega/reinicia el servicio y comprueba que `https://TU-DOMINIO/health` devuelve `ok: true` y `listo: true`.
+4. En Lumi Android abre **Motores de IA → Backend propio** y pega solo la URL pública del servicio. No pegues claves en la aplicación.
+5. Pulsa **Guardar y probar**.
 
-Pedía el modelo `gpt-6-luna`, que no existe en ningún proveedor, y no tenía
-`package.json` ni `Dockerfile`. Nunca conectó. Ahora enruta entre varios
-motores gratuitos y descubre los modelos en runtime.
+## Variables de entorno privadas
+
+Solo necesitas una clave para empezar; puedes añadir más como respaldo.
+
+| Variable | Proveedor |
+|---|---|
+| `GEMINI_API_KEY` | Google Gemini |
+| `GROQ_API_KEY` | Groq |
+| `OPENROUTER_API_KEY` | OpenRouter |
+| `CEREBRAS_API_KEY` | Cerebras |
+| `MISTRAL_API_KEY` | Mistral |
+| `TOGETHER_API_KEY` | Together AI |
+| `HF_TOKEN` | Hugging Face |
+| `GOOGLE_API_KEY` | Alternativa para Gemini |
+| `HUGGINGFACE_API_KEY` | Alternativa para Hugging Face |
+| `PORT` | Puerto; Railway suele inyectarlo automáticamente |
+
+No escribas estas claves en archivos del repositorio, en commits, capturas de pantalla ni en el chat. Configúralas directamente en el panel del proveedor de despliegue.
 
 ## Endpoints
 
-| Método | Ruta | Para qué |
+| Método | Ruta | Uso |
 |---|---|---|
-| GET | `/health` | Estado y qué proveedores tienen clave |
-| GET | `/models` | Modelos disponibles (formato OpenAI) |
-| POST | `/chat/completions` | Igual que la API de OpenAI, con soporte de `tools` |
+| GET | `/` o `/health` | Estado y proveedores configurados |
+| GET | `/models` | Modelos disponibles |
+| POST | `/chat/completions` | Chat compatible con OpenAI y herramientas |
 
-### POST /chat/completions
+La aplicación envía las solicitudes a `/chat/completions`; el backend selecciona el proveedor configurado y puede pasar al siguiente si uno falla.
 
-```json
-{
-  "model": "auto",
-  "messages": [
-    {"role": "system", "content": "Eres Lumi…"},
-    {"role": "user", "content": "Ponme una alarma a las 7"}
-  ],
-  "temperature": 0.35,
-  "max_tokens": 1200,
-  "tools": [{"type": "function", "function": {"name": "poner_alarma", "parameters": {}}}]
-}
-```
+## Despliegue
 
-`model: "auto"` deja que el backend elija el mejor modelo del primer proveedor
-con clave. Si un proveedor falla (401, 429, 503…), pasa al siguiente y, al
-final, informa en `error.fallos` qué probó y con qué error.
-
-La respuesta es la de OpenAI tal cual, con un campo extra `lumiweg_proveedor`
-que dice quién respondió de verdad.
-
-## Variables de entorno
-
-Basta con **una** para que funcione. Cuantas más, más resistente.
-
-| Variable | Proveedor | Dónde se obtiene |
-|---|---|---|
-| `GROQ_API_KEY` | Groq | https://console.groq.com/keys |
-| `GEMINI_API_KEY` | Google Gemini | https://aistudio.google.com/apikey |
-| `OPENROUTER_API_KEY` | OpenRouter | https://openrouter.ai/keys |
-| `CEREBRAS_API_KEY` | Cerebras | https://cloud.cerebras.ai |
-| `MISTRAL_API_KEY` | Mistral | https://console.mistral.ai/api-keys |
-| `TOGETHER_API_KEY` | Together AI | https://api.together.ai/settings/api-keys |
-| `HF_TOKEN` | Hugging Face | https://huggingface.co/settings/tokens |
-| `PORT` | — | Puerto, por defecto 3000 |
-
-## Ejecutar
-
-```bash
-cd backend
-bun run index.ts
-# o
-docker build -t lumiweg-ai . && docker run -p 3000:3000 -e GROQ_API_KEY=xxx lumiweg-ai
-```
-
-En Railway, Render o Fly.io: despliega la carpeta `backend/` y pega las
-variables. La URL pública (`https://…`) se pega en la app, en
-Ajustes → Motores de IA → Backend propio.
+Configura el directorio raíz del servicio como `backend/` en Railway y utiliza el comando de inicio compatible con Bun del proyecto. Después, copia el dominio HTTPS asignado por Railway y úsalo en la configuración de Lumi. El dominio es una URL pública, no una clave secreta.
