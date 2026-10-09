@@ -17,7 +17,7 @@ const PORT = Number(Bun.env.PORT || 3000);
 type Proveedor = {
   id: string;
   base: string;
-  kind: 'openai' | 'gemini';
+  kind: 'openai' | 'gemini' | 'anthropic';
   key: string;
   modelos: string[];
   preferir: RegExp;
@@ -41,6 +41,18 @@ const PROVEEDORES: Proveedor[] = [
     key: Bun.env.OPENAI_API_KEY || '',
     modelos: ['gpt-5.5', 'gpt-4.1-mini'],
     preferir: /^gpt-/i
+  },
+  {
+    id: 'claude', base: 'https://api.anthropic.com/v1', kind: 'anthropic',
+    key: Bun.env.ANTHROPIC_API_KEY || Bun.env.CLAUDE_API_KEY || '',
+    modelos: ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5-20251001'],
+    preferir: /^claude-/i
+  },
+  {
+    id: 'kimi', base: 'https://api.moonshot.ai/v1', kind: 'openai',
+    key: Bun.env.MOONSHOT_API_KEY || Bun.env.KIMI_API_KEY || '',
+    modelos: ['kimi-k2.5', 'kimi-k2-thinking', 'kimi-k2-turbo-preview'],
+    preferir: /^kimi-/i
   },
   {
     id: 'deepseek', base: 'https://api.deepseek.com', kind: 'openai',
@@ -106,6 +118,10 @@ async function descubrir(p: Proveedor): Promise<string[]> {
         .filter((m: any) => (m.supportedGenerationMethods || []).includes('generateContent'))
         .map((m: any) => String(m.name || '').replace(/^models\//, ''))
         .filter(Boolean);
+    } else if (p.kind === 'anthropic') {
+      const r = await fetch(p.base + '/models', { headers: { 'x-api-key': p.key, 'anthropic-version': '2023-06-01' } });
+      const d: any = await r.json();
+      encontrados = (d?.data || []).map((m: any) => String(m.id || '')).filter(Boolean);
     } else {
       const r = await fetch(p.base + '/models', { headers: { Authorization: 'Bearer ' + p.key } });
       const d: any = await r.json();
@@ -139,6 +155,22 @@ function aGemini(mensajes: any[]) {
 }
 
 async function llamar(p: Proveedor, model: string, body: any) {
+  if (p.kind === 'anthropic') {
+    const mensajes = (body.messages || []).filter((m: any) => m.role !== 'system')
+      .map((m: any) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') }));
+    const sistema = (body.messages || []).filter((m: any) => m.role === 'system').map((m: any) => String(m.content || '')).join('\n\n');
+    const payload: any = { model, max_tokens: body.max_tokens ?? 1200, messages: mensajes, ...(sistema ? { system: sistema } : {}) };
+    if (body.temperature !== undefined && !/claude-(opus|sonnet)-5|claude-opus-4-7/i.test(model)) payload.temperature = body.temperature;
+    const r = await fetch(p.base + '/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(payload)
+    });
+    const d: any = await r.json();
+    if (!r.ok) throw Object.assign(new Error(JSON.stringify(d).slice(0, 400)), { status: r.status });
+    const texto = (d?.content || []).filter((x: any) => x.type === 'text').map((x: any) => x.text).join('');
+    return { id: d.id, object: 'chat.completion', model, choices: [{ index: 0, message: { role: 'assistant', content: texto }, finish_reason: d.stop_reason || 'stop' }], lumiweg_proveedor: p.id };
+  }
   if (p.kind === 'gemini') {
     const { sistema, contents } = aGemini(body.messages || []);
     const gen: any = { temperature: body.temperature ?? 0.35, maxOutputTokens: body.max_tokens ?? 1200 };
@@ -237,7 +269,7 @@ Bun.serve({
 
     const disponibles = conClave();
     if (!disponibles.length) {
-      return json({ error: { message: 'El backend no tiene ninguna clave configurada (OPENAI_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, etc.)' } }, 503);
+      return json({ error: { message: 'El backend no tiene ninguna clave configurada (OPENAI_API_KEY, ANTHROPIC_API_KEY, MOONSHOT_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, etc.)' } }, 503);
     }
 
     // El modelo pedido decide el proveedor; «auto» o desconocido → cadena completa.
@@ -251,6 +283,8 @@ Bun.serve({
         if (p.id === 'xai') return /^grok-/i.test(pedido);
         if (p.id === 'openai') return /^gpt-/i.test(pedido);
         if (p.id === 'deepseek') return /^deepseek-/i.test(pedido);
+        if (p.id === 'claude') return /^claude-/i.test(pedido);
+        if (p.id === 'kimi') return /^kimi-/i.test(pedido);
         if (p.id === 'groq') return /llama|gpt-oss|qwen/i.test(pedido);
         if (p.id === 'cerebras') return /gpt-oss|glm|gemma/i.test(pedido);
         if (p.id === 'mistral') return /mistral|nemo/i.test(pedido);
