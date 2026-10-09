@@ -343,9 +343,9 @@ public class LumiBridge {
         return r;
     }
 
-    private static String etiqueta(ResolveInfo r) {
+    private String etiqueta(ResolveInfo r) {
         try {
-            return String.valueOf(r.loadLabel(r.activityInfo.applicationInfo.getPackageManager()));
+            return String.valueOf(r.loadLabel(activity.getPackageManager()));
         } catch (Exception e) {
             return r.activityInfo.packageName;
         }
@@ -785,7 +785,7 @@ public class LumiBridge {
      * ================================================================== */
 
     @JavascriptInterface
-    public String notify(String titulo, String cuerpo) {
+    public String notifyLocal(String titulo, String cuerpo) {
         try {
             if (Build.VERSION.SDK_INT >= 33 && !tiene("android.permission.POST_NOTIFICATIONS")) {
                 return fail("permiso", "Falta el permiso de notificaciones.");
