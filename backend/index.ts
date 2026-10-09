@@ -64,10 +64,10 @@ async function callGemini(message,history,system){
   for(const model of geminiModels){
     try{
       const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
-      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},body:JSON.stringify({
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},signal:AbortSignal.timeout(8500),body:JSON.stringify({
         system_instruction:{parts:[{text:system}]},
         contents,
-        generationConfig:{maxOutputTokens:520,thinkingConfig:{thinkingLevel:'low'}}
+        generationConfig:{maxOutputTokens:360,thinkingConfig:{thinkingLevel:'low'}}
       })});
       const data=await r.json().catch(()=>({}));
       if(r.ok){
@@ -75,6 +75,8 @@ async function callGemini(message,history,system){
         if(reply)return {reply,model,provider:'gemini'};
       }
       console.warn('Gemini model failed',model,r.status,String(data?.error?.message||'').slice(0,400));
+      // Do not spend another full request window retrying other Gemini models during provider overload.
+      if(r.status===429||r.status===503)return null;
     }catch(e){console.warn('Gemini request failed',String(e?.message||e).slice(0,400))}
   }
   return null;
