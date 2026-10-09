@@ -36,11 +36,11 @@ async function callOpenAICompatible(name,baseUrl,key,model,message,history,syste
   if(!key||!baseUrl||!model)return null;
   try{
     const url=baseUrl.replace(/\/$/,'')+'/chat/completions';
-    const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({
+    const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},signal:AbortSignal.timeout(4500),body:JSON.stringify({
       model,
       messages:messages(message,history,system),
       temperature:0.65,
-      max_tokens:520
+      max_tokens:420
     })});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){
@@ -64,7 +64,7 @@ async function callGemini(message,history,system){
   for(const model of geminiModels){
     try{
       const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
-      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},signal:AbortSignal.timeout(8500),body:JSON.stringify({
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},signal:AbortSignal.timeout(4500),body:JSON.stringify({
         system_instruction:{parts:[{text:system}]},
         contents,
         generationConfig:{maxOutputTokens:360,thinkingConfig:{thinkingLevel:'low'}}
@@ -89,7 +89,7 @@ async function callCloudflare(message,history,system){
   if(!key||!account||!model)return null;
   try{
     const url='https://api.cloudflare.com/client/v4/accounts/'+account+'/ai/run/'+encodeURIComponent(model);
-    const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({
+    const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},signal:AbortSignal.timeout(4500),body:JSON.stringify({
       messages:messages(message,history,system)
     })});
     const data=await r.json().catch(()=>({}));
@@ -126,6 +126,8 @@ async function routeAI(message,history,system){
     const result=await provider.call(message,history,system);
     if(result)return result;
     failures.push(provider.id);
+    // Keep voice replies responsive: try at most one backup provider after the primary fails.
+    if(failures.length >= 2) break;
   }
   return {error:'AI providers unavailable',failures};
 }
