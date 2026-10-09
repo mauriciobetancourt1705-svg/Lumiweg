@@ -247,6 +247,14 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> { try { if (tts != null) tts.stop(); } catch (Exception ignored) { } });
     }
 
+    public void detenerEscucha() {
+        runOnUiThread(() -> {
+            escuchando = false;
+            try { if (stt != null) stt.cancel(); } catch (Exception ignored) { }
+            evaluarJs("window.Lumi&&Lumi.onVoiceState&&Lumi.onVoiceState('Micrófono pausado');");
+        });
+    }
+
     /** STT nativo: el WebView de Android no tiene SpeechRecognition. */
     public void escuchar() {
         runOnUiThread(() -> {
