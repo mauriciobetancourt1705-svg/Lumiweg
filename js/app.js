@@ -61,6 +61,7 @@ const Lumi = (() => {
     if (id === 's-well') renderMood();
     if (id === 's-ai') renderAI();
     if (id === 's-perms') renderPerms();
+    if (id === 's-voice') loadVoices();
     const sc = $('#' + id); if (sc) sc.scrollTop = 0;
   }
 
