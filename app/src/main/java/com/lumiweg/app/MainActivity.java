@@ -56,8 +56,8 @@ public class MainActivity extends Activity {
         @android.webkit.JavascriptInterface
         public void startVoiceRecognition() {
             runOnUiThread(() -> {
-                if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST);
+                if (Build.VERSION.SDK_INT >= 23 && MainActivity.this.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    MainActivity.this.requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST);
                     return;
                 }
                 try {
@@ -67,9 +67,9 @@ public class MainActivity extends Activity {
                     intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES");
                     intent.putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Habla con Lumi");
                     intent.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-                    startActivityForResult(intent, VOICE_RECOGNITION_REQUEST);
+                    MainActivity.this.startActivityForResult(intent, VOICE_RECOGNITION_REQUEST);
                 } catch (Exception e) {
-                    if (webView != null) webView.evaluateJavascript("window.LumiVoiceError&&window.LumiVoiceError('recognition_unavailable')", null);
+                    if (MainActivity.this.webView != null) MainActivity.this.webView.evaluateJavascript("window.LumiVoiceError&&window.LumiVoiceError('recognition_unavailable')", null);
                 }
             });
         }
