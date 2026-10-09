@@ -753,6 +753,28 @@ public class LumiBridge {
     }
 
     @JavascriptInterface
+    public String stopListening() {
+        activity.detenerEscucha();
+        return json("ok", "true");
+    }
+
+    @JavascriptInterface
+    public String stopSpeaking() {
+        activity.detenerVoz();
+        return json("ok", "true");
+    }
+
+    @JavascriptInterface
+    public String getVoices() {
+        return activity.vocesDisponibles();
+    }
+
+    @JavascriptInterface
+    public boolean setVoice(String voiceName) {
+        return activity.seleccionarVoz(voiceName);
+    }
+
+    @JavascriptInterface
     public String copyToClipboard(String texto) {
         final String t = texto(texto);
         activity.runOnUiThread(new Runnable() {
