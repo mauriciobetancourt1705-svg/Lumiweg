@@ -37,6 +37,18 @@ const PROVEEDORES: Proveedor[] = [
     preferir: /^grok-/i
   },
   {
+    id: 'openai', base: 'https://api.openai.com/v1', kind: 'openai',
+    key: Bun.env.OPENAI_API_KEY || '',
+    modelos: ['gpt-5.5', 'gpt-4.1-mini'],
+    preferir: /^gpt-/i
+  },
+  {
+    id: 'deepseek', base: 'https://api.deepseek.com', kind: 'openai',
+    key: Bun.env.DEEPSEEK_API_KEY || '',
+    modelos: ['deepseek-flash', 'deepseek-v4-pro'],
+    preferir: /^deepseek-/i
+  },
+  {
     id: 'gemini', base: 'https://generativelanguage.googleapis.com/v1beta', kind: 'gemini',
     key: Bun.env.GEMINI_API_KEY || Bun.env.GOOGLE_API_KEY || '',
     modelos: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
@@ -225,7 +237,7 @@ Bun.serve({
 
     const disponibles = conClave();
     if (!disponibles.length) {
-      return json({ error: { message: 'El backend no tiene ninguna clave configurada (XAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, etc.)' } }, 503);
+      return json({ error: { message: 'El backend no tiene ninguna clave configurada (OPENAI_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, etc.)' } }, 503);
     }
 
     // El modelo pedido decide el proveedor; «auto» o desconocido → cadena completa.
@@ -237,6 +249,8 @@ Bun.serve({
         if (p.id === 'openrouter') return pedido.includes('/');
         if (p.id === 'gemini') return pedido.startsWith('gemini');
         if (p.id === 'xai') return /^grok-/i.test(pedido);
+        if (p.id === 'openai') return /^gpt-/i.test(pedido);
+        if (p.id === 'deepseek') return /^deepseek-/i.test(pedido);
         if (p.id === 'groq') return /llama|gpt-oss|qwen/i.test(pedido);
         if (p.id === 'cerebras') return /gpt-oss|glm|gemma/i.test(pedido);
         if (p.id === 'mistral') return /mistral|nemo/i.test(pedido);
