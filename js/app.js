@@ -1,38 +1,617 @@
-const Lumi=(()=>{const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],get=(k,d)=>{try{return JSON.parse(localStorage.getItem('lumi_'+k))??d}catch{return d}},set=(k,v)=>localStorage.setItem('lumi_'+k,JSON.stringify(v));let cfg=get('cfg',{name:'',accent:'#7fe3ff',memory:true,voiceReplies:false,notify:true}),tasks=get('tasks',[]),events=get('events',[]),chat=get('chat',[]),month=0,day=null;if(!cfg||typeof cfg!=='object')cfg={name:'',accent:'#7fe3ff',memory:true,voiceReplies:false,notify:true};cfg={name:typeof cfg.name==='string'?cfg.name:'',accent:typeof cfg.accent==='string'?cfg.accent:'#7fe3ff',memory:cfg.memory!==false,voiceReplies:cfg.voiceReplies===true,notify:cfg.notify!==false};if(!Array.isArray(tasks))tasks=[];if(!Array.isArray(events))events=[];if(!Array.isArray(chat))chat=[];
-const now=()=>new Date(),hm=()=>now().toTimeString().slice(0,5),name=()=>cfg.name||'Mau',pad=n=>String(n).padStart(2,'0');
-function apply(){document.documentElement.style.setProperty('--accent',cfg.accent);if($('#homeName'))$('#homeName').textContent=name();if($('#setName'))$('#setName').value=cfg.name||'';$$('.sw').forEach(x=>x.classList.toggle('on',!!cfg[x.dataset.k]))}
-function toast(m){const t=$('#toast');if(!t)return;t.textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2600)}
-function go(id){$$('.screen').forEach(x=>x.classList.remove('active'));const e=$('#'+id);if(e)e.classList.add('active');$$('.navbar button').forEach(b=>b.classList.toggle('active',b.dataset.s===id));if(id==='s-chat')renderChat(true);if(id==='s-tasks')renderTasks();if(id==='s-cal')renderCal();if(id==='s-media')renderPlaylist();if(id==='s-well')renderMood()}
-const AI_ENDPOINT='';
-let aiBusy=false;
-function aiHistory(){return chat.slice(-12).map(m=>({role:m.who==='user'?'user':'assistant',content:String(m.text||'')}))}
-async function askAI(text){
-  if(!AI_ENDPOINT||aiBusy)return null;
-  aiBusy=true;
-  try{
-    const r=await fetch(AI_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:aiHistory(),user:{name:cfg.name||'',locale:navigator.language||'es-ES'}})});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    const answer=typeof d.reply==='string'?d.reply:(typeof d.content==='string'?d.content:'');
-    return answer.trim()||null;
-  }catch(e){console.warn('Lumi AI backend:',e);return null}
-  finally{aiBusy=false}
-}
-const EXTERNAL_APPS={WhatsApp:'https://wa.me/',YouTube:'https://www.youtube.com/',Correo:'https://mail.google.com/',Navegador:'https://www.google.com/',Instagram:'https://www.instagram.com/',TikTok:'https://www.tiktok.com/',Facebook:'https://www.facebook.com/',Gmail:'https://mail.google.com/',Telegram:'https://t.me/',Spotify:'https://open.spotify.com/',Netflix:'https://www.netflix.com/',Maps:'https://maps.google.com/', 'Play Store':'https://play.google.com/store',Drive:'https://drive.google.com/',Noticias:'https://news.google.com/'};function openExternal(label){const url=EXTERNAL_APPS[label];if(!url){toast('No tengo configurado '+label);return}if(window.AndroidLumi&&typeof window.AndroidLumi.openExternal==='function'){window.AndroidLumi.openExternal(url);return}const w=window.open(url,'_blank');if(!w)location.href=url}function grid(id,items){const e=$(id);if(!e)return;e.innerHTML='';items.forEach(([ic,l])=>{const d=document.createElement('div');d.className='card';d.innerHTML='<div class="ci">'+ic+'</div><p>'+l+'</p>';d.onclick=()=>{const m={Apps:'s-apps',Multimedia:'s-media',Calendario:'s-cal',Tareas:'s-tasks',Recordatorios:'s-tasks',Ajustes:'s-set'};m[l]?go(m[l]):openExternal(l)};e.appendChild(d)})}
-const ACTIONS=[['💬','WhatsApp'],['▶️','YouTube'],['✉️','Correo'],['🌐','Navegador'],['📱','Apps'],['🎵','Multimedia'],['📅','Calendario'],['⏰','Recordatorios'],['✅','Tareas'],['⚙️','Ajustes']],APPS=[['💬','WhatsApp'],['📸','Instagram'],['🎵','TikTok'],['👥','Facebook'],['✉️','Gmail'],['✈️','Telegram'],['🎧','Spotify'],['🎬','Netflix'],['🗺️','Maps'],['🛒','Play Store'],['📁','Drive'],['📖','Noticias']];
-function brain(t){const x=t.toLowerCase().trim();let m=x.match(/(?:agrega|añade|crea)\s+(?:una\s+)?tarea[:\s]+(.+)/);if(m){addTaskFrom(m[1]);return'Listo ✨ Agregué la tarea "'+m[1]+'".'}m=x.match(/(?:recuerda|recuérdame)\s+(.+)/);if(m){addTaskFrom('Recordar: '+m[1]);return'Apuntado ✨ Te recordaré: '+m[1]}if(x.includes('hora'))return'Son las '+hm()+'.';if(x.includes('fecha')||x.includes('qué día'))return'Hoy es '+now().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(x.includes('tarea')||x.includes('pendiente'))return tasks.filter(t=>!t.done).length+' tarea(s) pendiente(s).';if(x.includes('bienestar')||x.includes('medita')){setTimeout(()=>go('s-well'),300);return'Abriendo Modo Bienestar 🌿'}if(x.includes('música')||x.includes('musica')){setTimeout(()=>go('s-media'),300);return'Vamos a relajarnos un rato 🎵'}if(x.includes('quién eres')||x.includes('quien eres'))return'Soy Lumi ✦, tu asistente virtual total: bienestar, voz, memoria y acciones.';if(x.includes('hola'))return'¡Hola, '+name()+'! ¿En qué te ayudo hoy? ✦';if(x.includes('gracias'))return'Siempre aquí para apoyarte 💜';return'Listo. Ya lo tengo en cuenta. Puedo ayudarte con tareas, recordatorios, calendario, bienestar, voz y más ✦'}
-function push(w,t){chat.push({who:w,text:t,t:hm()});if(cfg.memory)set('chat',chat)}
-function renderChat(scroll){const b=$('#chatbox');if(!b)return;b.innerHTML='';if(!chat.length)push('lumi','¡Hola '+name()+'! ✨ Soy Lumi. ¿En qué te ayudo hoy?');chat.forEach(m=>{const d=document.createElement('div');d.className='msg '+m.who;d.innerHTML=m.text.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'<span class="t">'+m.t+'</span>';b.appendChild(d)});if(scroll)b.scrollTop=b.scrollHeight}
-async function send(){const i=$('#chatIn'),t=i&&i.value.trim();if(!t||aiBusy)return;push('user',t);i.value='';renderChat(true);const remote=await askAI(t);const r=remote||brain(t);push('lumi',r);renderChat(true);if(cfg.voiceReplies)speak(r)}
-function clearChat(){chat=[];set('chat',chat);renderChat(true);toast('Conversación limpiada ✨')}
-let rec=null;function toggleVoice(){const R=window.SpeechRecognition||window.webkitSpeechRecognition;if(!R){toast('La voz requiere Chrome/Edge');return}if(rec){rec.stop();return}try{rec=new R();}catch(e){rec=null;toast('No se pudo iniciar la voz');return}rec.lang='es-ES';rec.onstart=()=>$('#voiceState').textContent='Escuchando…';rec.onresult=e=>{$('#voiceText').textContent=e.results[0][0].transcript;$('#chatIn').value=e.results[0][0].transcript;go('s-chat');send()};rec.onerror=e=>{toast('La voz no pudo iniciarse: '+(e&&e.error?e.error:'error'));};rec.onend=()=>{rec=null;$('#voiceState').textContent='Toca el orbe para hablar'};try{rec.start()}catch(e){rec=null;$('#voiceState').textContent='Toca el orbe para hablar';toast('El navegador bloqueó el micrófono')}}
-function startDictation(){go('s-voice');setTimeout(toggleVoice,300)}function speak(t){if(!('speechSynthesis'in window))return;const u=new SpeechSynthesisUtterance(t);u.lang='es-ES';speechSynthesis.cancel();speechSynthesis.speak(u)}function speakTest(){speak('Hola '+name()+'. Soy Lumi, tu asistente virtual total.')}
-function esc(v){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function renderTasks(){const e=$('#taskList');if(!e)return;e.innerHTML=tasks.length?'':'<p class="sub">Sin tareas. ¡Todo bajo control! 🎉</p>';tasks.forEach((t,i)=>{if(!t||typeof t!=='object')return;const text=esc(t.text??'');e.insertAdjacentHTML('beforeend','<div class="task'+(t.done?' done':'')+'"><div class="ck" onclick="Lumi.checkTask('+i+')">✔</div><span>'+text+'</span><button class="del" onclick="Lumi.delTask('+i+')">✕</button></div>')})}
-function addTask(){const i=$('#taskIn');if(!i.value.trim())return;addTaskFrom(i.value.trim());i.value='';toast('Tarea agregada ✅')}function addTaskFrom(t){t=String(t??'').trim();if(!t)return;tasks.push({text:t,done:false});set('tasks',tasks);renderTasks()}function checkTask(i){tasks[i].done=!tasks[i].done;set('tasks',tasks);renderTasks()}function delTask(i){tasks.splice(i,1);set('tasks',tasks);renderTasks()}
-const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];function shiftMonth(n){month+=n;renderCal()}function renderCal(){const b=new Date(now().getFullYear(),now().getMonth()+month,1),y=b.getFullYear(),mo=b.getMonth(),g=$('#calGrid');if(!g)return;$('#calTitle').textContent=MONTHS[mo]+' '+y;g.innerHTML=['L','M','M','J','V','S','D'].map(x=>'<div class="hd">'+x+'</div>').join('');const first=(new Date(y,mo,1).getDay()+6)%7,days=new Date(y,mo+1,0).getDate();for(let i=0;i<first;i++)g.insertAdjacentHTML('beforeend','<div class="d"></div>');for(let d=1;d<=days;d++){const k=y+'-'+pad(mo+1)+'-'+pad(d),e=document.createElement('div');e.className='d'+(k===now().getFullYear()+'-'+pad(now().getMonth()+1)+'-'+pad(now().getDate())&&month===0?' today':'')+(events.some(v=>v.d===k)?' has':'')+(day===k?' sel':'');e.textContent=d;e.onclick=()=>{day=day===k?null:k;renderCal()};g.appendChild(e)}const l=$('#eventList');l.innerHTML='';const list=day?events.map((e,i)=>({e,i})).filter(x=>x.e.d===day):events.map((e,i)=>({e,i})).filter(x=>x.e.d.startsWith(y+'-'+pad(mo+1)));list.forEach(x=>l.insertAdjacentHTML('beforeend','<div class="event"><button class="del" onclick="Lumi.delEvent('+x.i+')">✕</button><b>'+esc(x.e.time)+'</b> · '+esc(x.e.text)+'</div>'));if(!list.length)l.insertAdjacentHTML('beforeend','<p class="sub">Sin eventos. ¡Agenda algo bonito! 📅</p>')}
-function addEvent(){const i=$('#eventIn'),v=i.value.trim(),m=v.match(/(\d{1,2})\s+(\d{1,2}:\d{2}|todo el día)\s+(.+)/i)||v.match(/(\d{1,2})\s+(.+)/);if(!m){toast('Formato: 15 18:00 Gimnasio');return}const base=new Date(now().getFullYear(),now().getMonth()+month,1),dayNum=Number(m[1]),maxDay=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();if(dayNum<1||dayNum>maxDay){toast('Ese día no existe en el mes seleccionado');return}events.push({d:base.getFullYear()+'-'+pad(base.getMonth()+1)+'-'+pad(dayNum),time:m.length===4?m[2]:'todo el día',text:m.length===4?m[3]:m[2]});set('events',events);i.value='';renderCal();toast('Evento agendado 📅')}function delEvent(i){events.splice(i,1);set('events',events);renderCal()}
-const TRACKS=[['🎵','Música para concentrarte','Focus · 24 min'],['🌙','Música relajante para dormir','Ambient · 42 min'],['🌲','Lo mejor de la naturaleza','Sonidos · 31 min'],['✨','Chulas motivacionales','Playlist · 18 min']];let cur=0,playing=false,prog=0,timer;function renderPlaylist(){if(!$('#playlist'))return;$('#playerTitle').textContent=TRACKS[cur][1];$('#playerArt').textContent=TRACKS[cur][0];$('#playlist').innerHTML=TRACKS.map((t,i)=>'<div class="track'+(i===cur?' playing':'')+'"><span>'+t[0]+'</span><div class="ti">'+t[1]+'<small>'+t[2]+'</small></div><span>▶️</span></div>').join('');$$('.track').forEach((e,i)=>e.onclick=()=>{cur=i;prog=0;renderPlaylist()})}function togglePlay(){playing=!playing;$('#playBtn').textContent=playing?'⏸️':'▶️';clearInterval(timer);if(playing)timer=setInterval(()=>{prog=Math.min(100,prog+1);$('#pbar').style.width=prog+'%';if(prog>=100)nextTrack()},1000)}function nextTrack(){cur=(cur+1)%TRACKS.length;prog=0;renderPlaylist()}function prevTrack(){cur=(cur-1+TRACKS.length)%TRACKS.length;prog=0;renderPlaylist()}
-let breathing=false,bTimer;function toggleBreath(){breathing=!breathing;$('#breathBtn').textContent=breathing?'Detener':'Comenzar respiración guiada';clearTimeout(bTimer);if(!breathing){$('#breathCircle').classList.remove('in');return}const c=()=>{if(!breathing)return;$('#breathCircle').classList.add('in');$('#breathLabel').textContent='Inhala…';bTimer=setTimeout(()=>{$('#breathCircle').classList.remove('in');$('#breathLabel').textContent='Exhala…';bTimer=setTimeout(c,4000)},4000)};c()}
-function mood(m){set('mood',{m,t:now().toLocaleDateString('es-ES')});renderMood();toast('Registré tu ánimo '+m+' 💜')}function renderMood(){const m=get('mood',null);if($('#moodLog'))$('#moodLog').textContent=m?'Último registro: '+m.m+' · '+m.t:'Aún no registras tu ánimo hoy.'}function wellMsg(k){const m={'Escucha activa':'Te escucho sin juzgar, '+name()+'. Cuéntame lo que necesites.','Consejos personalizados':'Divide tus metas en pasos pequeños. Cada paso cuenta.','Motivación diaria':'El éxito es la suma de pequeños esfuerzos repetidos cada día.'};toast(m[k]||'Estoy aquí para ti 💜');speak(m[k]||'')}
-function saveName(){const v=$('#nameInput').value.trim();if(!v)return toast('Escribe tu nombre para comenzar ✦');cfg.name=v;set('cfg',cfg);$('#onboarding').classList.add('hidden');apply();go('s-home');setTimeout(()=>speak('Hola '+v+'. Soy Lumi.'),300)}function rename(v){if(v.trim()){cfg.name=v.trim();set('cfg',cfg);apply()}}function accent(c){cfg.accent=c;set('cfg',cfg);apply()}function toggle(sw){cfg[sw.dataset.k]=!cfg[sw.dataset.k];set('cfg',cfg);apply()}function wipe(){if(confirm('¿Borrar todos los datos de Lumi?')){localStorage.clear();location.reload()}}
-function init(){try{const tick=()=>{const c=$('#clock');if(c)c.textContent=hm()};tick();setInterval(tick,15000);apply();if(!cfg.name)$('#onboarding').classList.remove('hidden');grid('#actionsGrid',ACTIONS);grid('#appsGrid',APPS);renderChat(false);renderTasks();renderCal();renderPlaylist();renderMood();if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{})}catch(e){console.error('Lumi init error',e);toast('Lumi tuvo un problema al iniciar. Recarga la app.')}}document.addEventListener('DOMContentLoaded',init);const API={go,send,clearChat,toggleVoice,startDictation,speakTest,togglePlay,nextTrack,prevTrack,toggleBreath,mood,wellMsg,addTask,addTaskFrom,checkTask,delTask,shiftMonth,addEvent,delEvent,saveName,rename,accent,toggle,wipe,openExternal};window.Lumi=API;return API})()
+/* ============================================================================
+   Lumiweg — UI + orquestación
+   ----------------------------------------------------------------------------
+   Antes: AI_ENDPOINT='' → askAI() devolvía null siempre → todo caía en brain(),
+   un matcher de regex con respuestas fijas. No había IA.
+   Ahora: la UI habla con LumiCore (cerebro multi-proveedor) y LumiDevice
+   (control del teléfono).
+   ========================================================================== */
+
+const Lumi = (() => {
+  'use strict';
+
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const get = (k, d) => { try { return JSON.parse(localStorage.getItem('lumi_' + k)) ?? d; } catch { return d; } };
+  const set = (k, v) => { try { localStorage.setItem('lumi_' + k, JSON.stringify(v)); } catch {} };
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const now = () => new Date();
+  const hm = () => now().toTimeString().slice(0, 5);
+  const pad = n => String(n).padStart(2, '0');
+
+  /* ---------------- estado ---------------- */
+  let cfg = get('cfg', { name: '', accent: '#7fe3ff', memory: true, voiceReplies: false, notify: true });
+  if (!cfg || typeof cfg !== 'object') cfg = {};
+  cfg = {
+    name: typeof cfg.name === 'string' ? cfg.name : '',
+    accent: typeof cfg.accent === 'string' ? cfg.accent : '#7fe3ff',
+    memory: cfg.memory !== false,
+    voiceReplies: cfg.voiceReplies === true,
+    notify: cfg.notify !== false
+  };
+  let tasks = get('tasks', []); if (!Array.isArray(tasks)) tasks = [];
+  let events = get('events', []); if (!Array.isArray(events)) events = [];
+  let chat = get('chat', []); if (!Array.isArray(chat)) chat = [];
+  let month = 0, day = null, ocupado = false;
+
+  const name = () => cfg.name || 'Mau';
+
+  /* ---------------- utilidades de UI ---------------- */
+  function toast(m) {
+    const t = $('#toast'); if (!t) return;
+    t.textContent = m; t.classList.add('show');
+    clearTimeout(t._x); t._x = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+
+  function apply() {
+    document.documentElement.style.setProperty('--accent', cfg.accent);
+    if ($('#homeName')) $('#homeName').textContent = name();
+    if ($('#setName')) $('#setName').value = cfg.name || '';
+    $$('.sw').forEach(x => x.classList.toggle('on', !!cfg[x.dataset.k]));
+  }
+
+  function go(id) {
+    $$('.screen').forEach(x => x.classList.remove('active'));
+    const e = $('#' + id); if (e) e.classList.add('active');
+    $$('.navbar button').forEach(b => b.classList.toggle('active', b.dataset.s === id));
+    if (id === 's-chat') renderChat(true);
+    if (id === 's-tasks') renderTasks();
+    if (id === 's-cal') renderCal();
+    if (id === 's-media') renderPlaylist();
+    if (id === 's-well') renderMood();
+    if (id === 's-ai') renderAI();
+    if (id === 's-perms') renderPerms();
+    const sc = $('#' + id); if (sc) sc.scrollTop = 0;
+  }
+
+  /* ================================================================
+     CHAT — aquí vive la IA de verdad
+     ================================================================ */
+  function push(who, text, extra) {
+    chat.push({ who, text: String(text || ''), t: hm(), extra: extra || null });
+    if (cfg.memory) set('chat', chat);
+  }
+
+  function burbuja(m) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + m.who;
+    let html = esc(m.text).replace(/\n/g, '<br>');
+    if (m.extra && m.extra.herramientas && m.extra.herramientas.length) {
+      html += '<div class="tools">' + m.extra.herramientas.map(h =>
+        '<span class="toolchip ' + (h.ok ? 'ok' : 'bad') + '">' + (h.ok ? '✓' : '✕') + ' ' + esc(h.nombre) + '</span>'
+      ).join('') + '</div>';
+    }
+    if (m.extra && m.extra.local) html += '<div class="aviso">Sin conexión con los motores de IA · respuesta local</div>';
+    d.innerHTML = html + '<span class="t">' + esc(m.t) + '</span>';
+    return d;
+  }
+
+  function renderChat(scroll) {
+    const b = $('#chatbox'); if (!b) return;
+    b.innerHTML = '';
+    if (!chat.length) {
+      push('lumi', '¡Hola ' + name() + '! ✨ Soy Lumi. Puedo conversar, ayudarte con el estudio, acompañarte, y también hacer cosas en tu teléfono: mandar mensajes, poner alarmas, abrir apps, leer tus notificaciones. ¿Qué necesitas?');
+    }
+    chat.forEach(m => b.appendChild(burbuja(m)));
+    if (scroll) b.scrollTop = b.scrollHeight;
+  }
+
+  function burbujaTrabajando(texto) {
+    const b = $('#chatbox'); if (!b) return null;
+    const d = document.createElement('div');
+    d.className = 'msg lumi trabajando';
+    d.innerHTML = '<span class="dots"><i></i><i></i><i></i></span> ' + esc(texto);
+    b.appendChild(d); b.scrollTop = b.scrollHeight;
+    return d;
+  }
+
+  async function send() {
+    const i = $('#chatIn');
+    const t = i && i.value.trim();
+    if (!t || ocupado) return;
+    ocupado = true;
+    push('user', t);
+    if (i) i.value = '';
+    renderChat(true);
+
+    const aviso = burbujaTrabajando('Lumi está pensando…');
+
+    // Ejecuta la conversación completa: el modelo puede pedir herramientas
+    // y el agent loop se encarga de ejecutarlas y devolverle el resultado.
+    const res = await LumiCore.preguntar(t, chat.slice(0, -1), {
+      herramientas: LumiDevice.esquemas(),
+      ejecutarHerramienta: LumiDevice.ejecutar,
+      contexto: LumiDevice.contexto(),
+      contextoUsuario: contextoPersonal(),
+      onIntento: (prov, model) => {
+        if (aviso) aviso.innerHTML = '<span class="dots"><i></i><i></i><i></i></span> ' + esc('Consultando ' + prov + ' (' + model + ')…');
+      }
+    });
+
+    if (aviso) aviso.remove();
+    ocupado = false;
+
+    const herramientas = (res.rastro || []).map(r => ({
+      nombre: r.herramienta,
+      ok: !(r.resultado && r.resultado.ok === false)
+    }));
+
+    push('lumi', res.texto, {
+      herramientas,
+      local: !!res.local,
+      proveedor: res.proveedor || null,
+      modelo: res.modelo || null
+    });
+    renderChat(true);
+
+    if (cfg.voiceReplies && res.texto) speak(res.texto);
+  }
+
+  function contextoPersonal() {
+    const pend = tasks.filter(t => !t.done).map(t => t.text).slice(0, 10);
+    const prox = events.slice(0, 6).map(e => e.d + ' ' + e.time + ' ' + e.text);
+    const partes = ['Nombre: ' + name() + '.', 'Fecha y hora: ' + now().toLocaleString('es-ES') + '.'];
+    if (pend.length) partes.push('Tareas pendientes: ' + pend.join('; ') + '.');
+    if (prox.length) partes.push('Próximos eventos: ' + prox.join('; ') + '.');
+    return partes.join(' ');
+  }
+
+  function clearChat() {
+    chat = []; set('chat', chat); renderChat(true); toast('Conversación limpiada ✨');
+  }
+
+  /* ================================================================
+     VOZ
+     ================================================================ */
+  let rec = null;
+  function toggleVoice() {
+    // En el APK la voz usa el reconocedor nativo de Android: el WebView no
+    // implementa la Web Speech API, así que la ruta web solo sirve en Chrome.
+    if (LumiDevice.hayNativo()) {
+      const r = LumiDevice.invocar('startListening');
+      if (r && r.ok) { const v = $('#voiceState'); if (v) v.textContent = 'Escuchando…'; return; }
+      if (r && r.error === 'permiso') { toast('Falta el permiso de micrófono'); return; }
+    }
+    const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!R) { toast('La voz necesita Chrome o el APK'); return; }
+    if (rec) { try { rec.stop(); } catch {} return; }
+    try { rec = new R(); } catch { rec = null; toast('No se pudo iniciar la voz'); return; }
+    rec.lang = 'es-ES'; rec.continuous = false; rec.interimResults = true;
+    rec.onstart = () => { const v = $('#voiceState'); if (v) v.textContent = 'Escuchando…'; };
+    rec.onresult = e => {
+      const txt = [...e.results].map(r => r[0].transcript).join('');
+      const vt = $('#voiceText'); if (vt) vt.textContent = txt;
+      if (e.results[e.results.length - 1].isFinal) {
+        if ($('#chatIn')) $('#chatIn').value = txt;
+        go('s-chat'); setTimeout(send, 120);
+      }
+    };
+    rec.onerror = e => toast('La voz falló: ' + (e && e.error ? e.error : 'error'));
+    rec.onend = () => { rec = null; const v = $('#voiceState'); if (v) v.textContent = 'Toca el orbe para hablar'; };
+    try { rec.start(); } catch { rec = null; toast('El navegador bloqueó el micrófono'); }
+  }
+
+  function startDictation() { go('s-voice'); setTimeout(toggleVoice, 350); }
+
+  /* Llamadas desde el lado nativo (MainActivity.java) */
+  function onVoiceState(txt) {
+    const v = $('#voiceState'); if (v) v.textContent = String(txt || '');
+    const t = $('#voiceText'); if (t) t.textContent = String(txt || '');
+  }
+  function onVoiceResult(txt) {
+    const limpio = String(txt || '').trim();
+    if (!limpio) { onVoiceState('No entendí nada'); return; }
+    onVoiceState(limpio);
+    if ($('#chatIn')) $('#chatIn').value = limpio;
+    go('s-chat');
+    setTimeout(send, 150);
+  }
+
+  function speak(t) {
+    if (LumiDevice.hayNativo()) { LumiDevice.invocar('speak', String(t || '')); return; }
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(String(t || ''));
+    u.lang = 'es-ES';
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+
+  function speakTest() { speak('Hola ' + name() + '. Soy Lumi, tu asistente personal total.'); }
+
+  /* ================================================================
+     TAREAS
+     ================================================================ */
+  function renderTasks() {
+    const e = $('#taskList'); if (!e) return;
+    e.innerHTML = tasks.length ? '' : '<p class="sub">Sin tareas. ¡Todo bajo control! 🎉</p>';
+    tasks.forEach((t, i) => {
+      if (!t || typeof t !== 'object') return;
+      e.insertAdjacentHTML('beforeend',
+        '<div class="task' + (t.done ? ' done' : '') + '"><div class="ck" onclick="Lumi.checkTask(' + i + ')">✔</div>' +
+        '<span>' + esc(t.text || '') + '</span><button class="del" onclick="Lumi.delTask(' + i + ')">✕</button></div>');
+    });
+  }
+  function addTask() { const i = $('#taskIn'); if (!i || !i.value.trim()) return; addTaskFrom(i.value.trim()); i.value = ''; toast('Tarea agregada ✅'); }
+  function addTaskFrom(t) { t = String(t == null ? '' : t).trim(); if (!t) return; tasks.push({ text: t, done: false }); set('tasks', tasks); renderTasks(); }
+  function checkTask(i) { if (!tasks[i]) return; tasks[i].done = !tasks[i].done; set('tasks', tasks); renderTasks(); }
+  function delTask(i) { tasks.splice(i, 1); set('tasks', tasks); renderTasks(); }
+
+  /* ================================================================
+     CALENDARIO
+     ================================================================ */
+  const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function shiftMonth(n) { month += n; renderCal(); }
+
+  function renderCal() {
+    const g = $('#calGrid'); if (!g) return;
+    const base = new Date(now().getFullYear(), now().getMonth() + month, 1);
+    const y = base.getFullYear(), mo = base.getMonth();
+    if ($('#calTitle')) $('#calTitle').textContent = MONTHS[mo] + ' ' + y;
+    g.innerHTML = ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => '<div class="hd">' + x + '</div>').join('');
+    const first = (new Date(y, mo, 1).getDay() + 6) % 7;
+    const days = new Date(y, mo + 1, 0).getDate();
+    const hoy = now().getFullYear() + '-' + pad(now().getMonth() + 1) + '-' + pad(now().getDate());
+    for (let i = 0; i < first; i++) g.insertAdjacentHTML('beforeend', '<div class="d"></div>');
+    for (let d = 1; d <= days; d++) {
+      const k = y + '-' + pad(mo + 1) + '-' + pad(d);
+      const el = document.createElement('div');
+      el.className = 'd' + (k === hoy && month === 0 ? ' today' : '') + (events.some(v => v.d === k) ? ' has' : '') + (day === k ? ' sel' : '');
+      el.textContent = d;
+      el.onclick = () => { day = day === k ? null : k; renderCal(); };
+      g.appendChild(el);
+    }
+    const l = $('#eventList'); if (!l) return;
+    l.innerHTML = '';
+    const lista = day
+      ? events.map((e, i) => ({ e, i })).filter(x => x.e.d === day)
+      : events.map((e, i) => ({ e, i })).filter(x => String(x.e.d).startsWith(y + '-' + pad(mo + 1)));
+    lista.forEach(x => l.insertAdjacentHTML('beforeend',
+      '<div class="event"><button class="del" onclick="Lumi.delEvent(' + x.i + ')">✕</button><b>' + esc(x.e.time) + '</b> · ' + esc(x.e.text) + '</div>'));
+    if (!lista.length) l.insertAdjacentHTML('beforeend', '<p class="sub">Sin eventos. ¡Agenda algo bonito! 📅</p>');
+  }
+
+  function addEvent() {
+    const i = $('#eventIn'); if (!i) return;
+    const v = i.value.trim();
+    const m = v.match(/(\d{1,2})\s+(\d{1,2}:\d{2}|todo el día)\s+(.+)/i) || v.match(/(\d{1,2})\s+(.+)/);
+    if (!m) { toast('Formato: 15 18:00 Gimnasio'); return; }
+    const base = new Date(now().getFullYear(), now().getMonth() + month, 1);
+    const dia = Number(m[1]);
+    const max = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+    if (dia < 1 || dia > max) { toast('Ese día no existe en el mes seleccionado'); return; }
+    events.push({
+      d: base.getFullYear() + '-' + pad(base.getMonth() + 1) + '-' + pad(dia),
+      time: m.length === 4 ? m[2] : 'todo el día',
+      text: m.length === 4 ? m[3] : m[2]
+    });
+    set('events', events); i.value = ''; renderCal(); toast('Evento agendado 📅');
+  }
+  function delEvent(i) { events.splice(i, 1); set('events', events); renderCal(); }
+
+  /* ================================================================
+     MULTIMEDIA
+     ================================================================ */
+  const TRACKS = [
+    ['🎵', 'Música para concentrarte', 'Focus · 24 min'],
+    ['🌙', 'Música relajante para dormir', 'Ambient · 42 min'],
+    ['🌲', 'Lo mejor de la naturaleza', 'Sonidos · 31 min'],
+    ['✨', 'Playlist motivacional', 'Playlist · 18 min']
+  ];
+  let cur = 0, playing = false, prog = 0, timer = null;
+  function renderPlaylist() {
+    if (!$('#playlist')) return;
+    $('#playerTitle').textContent = TRACKS[cur][1];
+    $('#playerArt').textContent = TRACKS[cur][0];
+    $('#playlist').innerHTML = TRACKS.map((t, i) =>
+      '<div class="track' + (i === cur ? ' playing' : '') + '"><span>' + t[0] + '</span><div class="ti">' + t[1] + '<small>' + t[2] + '</small></div><span>▶️</span></div>').join('');
+    $$('.track').forEach((e, i) => e.onclick = () => { cur = i; prog = 0; renderPlaylist(); });
+  }
+  function togglePlay() {
+    playing = !playing;
+    if ($('#playBtn')) $('#playBtn').textContent = playing ? '⏸️' : '▶️';
+    clearInterval(timer);
+    if (playing) timer = setInterval(() => { prog = Math.min(100, prog + 1); if ($('#pbar')) $('#pbar').style.width = prog + '%'; if (prog >= 100) nextTrack(); }, 1000);
+  }
+  function nextTrack() { cur = (cur + 1) % TRACKS.length; prog = 0; renderPlaylist(); }
+  function prevTrack() { cur = (cur - 1 + TRACKS.length) % TRACKS.length; prog = 0; renderPlaylist(); }
+
+  /* ================================================================
+     BIENESTAR
+     ================================================================ */
+  let breathing = false, bTimer = null;
+  function toggleBreath() {
+    breathing = !breathing;
+    if ($('#breathBtn')) $('#breathBtn').textContent = breathing ? 'Detener' : 'Comenzar respiración guiada';
+    clearTimeout(bTimer);
+    if (!breathing) { $('#breathCircle').classList.remove('in'); return; }
+    const ciclo = () => {
+      if (!breathing) return;
+      $('#breathCircle').classList.add('in'); $('#breathLabel').textContent = 'Inhala…';
+      bTimer = setTimeout(() => {
+        $('#breathCircle').classList.remove('in'); $('#breathLabel').textContent = 'Exhala…';
+        bTimer = setTimeout(ciclo, 4000);
+      }, 4000);
+    };
+    ciclo();
+  }
+
+  function mood(m) {
+    const l = get('bienestar', { checkins: [] });
+    const hoy = now().toISOString().slice(0, 10);
+    l.checkins = (l.checkins || []).filter(x => x.date !== hoy);
+    l.checkins.push({ date: hoy, emoji: m, nota: '' });
+    set('bienestar', l);
+    renderMood();
+    toast('Registré tu ánimo ' + m + ' 💜');
+  }
+  function renderMood() {
+    const l = get('bienestar', { checkins: [] });
+    const c = (l.checkins || []);
+    const el = $('#moodLog'); if (!el) return;
+    if (!c.length) { el.textContent = 'Aún no registras tu ánimo hoy.'; return; }
+    const ult = c[c.length - 1];
+    const prom = k => { const v = c.slice(-14).map(x => Number(x[k])).filter(Number.isFinite); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '—'; };
+    el.textContent = 'Último registro: ' + (ult.emoji || '') + ' · ' + ult.date + '  |  Media 14 días → ánimo ' + prom('animo') + ' · estrés ' + prom('estres');
+  }
+  function wellMsg(k) {
+    const m = {
+      'Escucha activa': 'Te escucho sin juzgar, ' + name() + '. Cuéntame lo que necesites.',
+      'Consejos personalizados': 'Divide tus metas en pasos pequeños. Cada paso cuenta.',
+      'Motivación diaria': 'El éxito es la suma de pequeños esfuerzos repetidos cada día.'
+    };
+    toast(m[k] || 'Estoy aquí para ti 💜');
+    speak(m[k] || '');
+  }
+
+  /* ================================================================
+     ACCIONES RÁPIDAS / APPS
+     ================================================================ */
+  const EXTERNAL_APPS = {
+    WhatsApp: 'https://wa.me/', YouTube: 'https://www.youtube.com/', Correo: 'https://mail.google.com/',
+    Navegador: 'https://www.google.com/', Instagram: 'https://www.instagram.com/', TikTok: 'https://www.tiktok.com/',
+    Facebook: 'https://www.facebook.com/', Gmail: 'https://mail.google.com/', Telegram: 'https://t.me/',
+    Spotify: 'https://open.spotify.com/', Netflix: 'https://www.netflix.com/', Maps: 'https://maps.google.com/',
+    'Play Store': 'https://play.google.com/store', Drive: 'https://drive.google.com/', Noticias: 'https://news.google.com/'
+  };
+
+  function openExternal(label) {
+    // En Android intenta abrir la app real; si no, cae a la URL.
+    if (LumiDevice.hayNativo()) {
+      const r = LumiDevice.invocar('openApp', label);
+      if (r && r.ok) return;
+    }
+    const url = EXTERNAL_APPS[label];
+    if (!url) { toast('No tengo configurado ' + label); return; }
+    if (LumiDevice.hayNativo()) { LumiDevice.invocar('openExternalApp', url, ''); return; }
+    const w = window.open(url, '_blank'); if (!w) location.href = url;
+  }
+
+  function grid(id, items) {
+    const e = $(id); if (!e) return;
+    e.innerHTML = '';
+    items.forEach(([ic, l]) => {
+      const d = document.createElement('div');
+      d.className = 'card';
+      d.innerHTML = '<div class="ci">' + ic + '</div><p>' + esc(l) + '</p>';
+      d.onclick = () => {
+        const m = { Apps: 's-apps', Multimedia: 's-media', Calendario: 's-cal', Tareas: 's-tasks', Recordatorios: 's-tasks', Ajustes: 's-set', 'IA': 's-ai', Permisos: 's-perms' };
+        if (m[l]) go(m[l]); else openExternal(l);
+      };
+      e.appendChild(d);
+    });
+  }
+
+  const ACTIONS = [
+    ['💬', 'WhatsApp'], ['▶️', 'YouTube'], ['✉️', 'Correo'], ['🌐', 'Navegador'],
+    ['📱', 'Apps'], ['🎵', 'Multimedia'], ['📅', 'Calendario'], ['⏰', 'Recordatorios'],
+    ['✅', 'Tareas'], ['🧠', 'IA'], ['🛡️', 'Permisos'], ['⚙️', 'Ajustes']
+  ];
+  const APPS = [
+    ['💬', 'WhatsApp'], ['📸', 'Instagram'], ['🎵', 'TikTok'], ['👥', 'Facebook'],
+    ['✉️', 'Gmail'], ['✈️', 'Telegram'], ['🎧', 'Spotify'], ['🎬', 'Netflix'],
+    ['🗺️', 'Maps'], ['🛒', 'Play Store'], ['📁', 'Drive'], ['📖', 'Noticias']
+  ];
+
+  /* ================================================================
+     AJUSTES · PROVEEDORES DE IA
+     ================================================================ */
+  function renderAI() {
+    const cont = $('#aiList'); if (!cont) return;
+    const c = LumiCore.cfg();
+    const lista = LumiCore.estado();
+    const activos = lista.filter(p => p.configurado).length;
+    const resumen = $('#aiResumen');
+    if (resumen) {
+      resumen.innerHTML = activos
+        ? '<b>' + activos + '</b> motor(es) configurado(s). Lumi usa el primero disponible y salta al siguiente si falla o se agota.'
+        : '<b>Sin motores configurados.</b> Ahora mismo Lumi responde en modo local. Pega al menos una clave gratuita abajo.';
+    }
+    cont.innerHTML = lista.map(p => {
+      const tiene = p.configurado;
+      return '<div class="prov' + (tiene && p.activo ? ' on' : '') + '">' +
+        '<div class="provhead"><div><b>' + esc(p.nombre) + '</b>' + (p.gratis ? '<span class="pill">gratis</span>' : '') + '</div>' +
+        '<div class="sw' + (p.activo ? ' on' : '') + '" onclick="Lumi.toggleProvider(\'' + p.id + '\')"></div></div>' +
+        '<p class="sub">' + esc(p.nota) + '</p>' +
+        (p.requiereCuenta ? '<input class="kin" id="acct_' + p.id + '" placeholder="Account ID de Cloudflare" value="' + esc(c.accountId || '') + '" onchange="Lumi.setAccount(this.value)">' : '') +
+        (p.requiereUrl ? '<input class="kin" id="url_' + p.id + '" placeholder="https://tu-backend.up.railway.app" value="' + esc(c.proxyUrl || '') + '" onchange="Lumi.setProxy(this.value)">' : '') +
+        '<input class="kin" id="key_' + p.id + '" type="password" placeholder="' + (tiene ? '••••••••  (guardada)' : 'Pega tu clave gratuita') + '" ' +
+        'onkeydown="if(event.key===\'Enter\')Lumi.saveKey(\'' + p.id + '\')">' +
+        '<div class="provrow">' +
+        '<button class="btn small" onclick="Lumi.saveKey(\'' + p.id + '\')">Guardar</button>' +
+        '<button class="btn small" onclick="Lumi.testProvider(\'' + p.id + '\')">Probar</button>' +
+        '<button class="btn small ghost" onclick="Lumi.openLink(\'' + esc(p.keys) + '\')">Obtener clave</button>' +
+        '</div>' +
+        '<p class="sub" id="st_' + p.id + '">' + (p.modelos ? 'Modelo: ' + esc(p.modelos) : '') + '</p>' +
+        '</div>';
+    }).join('');
+  }
+
+  function saveKey(id) {
+    const inp = $('#key_' + id);
+    if (!inp || !inp.value.trim()) { toast('Escribe la clave primero'); return; }
+    const c = LumiCore.cfg();
+    c.keys[id] = inp.value.trim();
+    c.enabled[id] = true;
+    LumiCore.guardarCfg(c);
+    inp.value = '';
+    renderAI();
+    toast('Clave guardada. Pulsa Probar para verificar.');
+  }
+  function toggleProvider(id) {
+    const c = LumiCore.cfg();
+    c.enabled[id] = !(c.enabled[id] !== false);
+    LumiCore.guardarCfg(c);
+    renderAI();
+  }
+  function setAccount(v) { const c = LumiCore.cfg(); c.accountId = String(v || '').trim(); LumiCore.guardarCfg(c); }
+  function setProxy(v) { const c = LumiCore.cfg(); c.proxyUrl = String(v || '').trim(); LumiCore.guardarCfg(c); }
+  function openLink(u) {
+    if (!u) return;
+    if (LumiDevice.hayNativo()) LumiDevice.invocar('openExternalApp', u, '');
+    else window.open(u, '_blank');
+  }
+
+  async function testProvider(id) {
+    const st = $('#st_' + id);
+    if (st) st.textContent = 'Probando…';
+    const r = await LumiCore.probar(id);
+    if (st) {
+      st.textContent = r.ok
+        ? '✓ Funciona · ' + r.modelo + ' · ' + r.ms + ' ms · ' + r.modelos_disponibles + ' modelos disponibles'
+        : '✕ ' + (r.error || 'error');
+      st.className = 'sub ' + (r.ok ? 'ok' : 'bad');
+    }
+    toast(r.ok ? 'Motor operativo ✓' : 'Falló: ' + (r.error || 'error'));
+  }
+
+  async function probarTodo() {
+    const lista = LumiCore.estado().filter(p => p.configurado);
+    if (!lista.length) { toast('Configura al menos un motor'); return; }
+    toast('Probando ' + lista.length + ' motores…');
+    for (const p of lista) await testProvider(p.id);
+    toast('Prueba terminada');
+  }
+
+  /* ================================================================
+     AJUSTES · PERMISOS Y CONTROL
+     ================================================================ */
+  function renderPerms() {
+    const cont = $('#permList'); if (!cont) return;
+    if (!LumiDevice.hayNativo()) {
+      cont.innerHTML = '<p class="sub">Estás en el navegador. El control del teléfono solo funciona dentro del APK de Android. Instálalo y aquí verás el estado de cada permiso.</p>';
+      return;
+    }
+    const c = LumiDevice.capacidades();
+    const faltan = new Set(c.faltantes || []);
+    const filas = [
+      ['SMS', 'Enviar mensajes de texto'],
+      ['CONTACTOS', 'Buscar contactos por nombre'],
+      ['LLAMADAS', 'Hacer llamadas'],
+      ['NOTIFICACIONES', 'Mostrar notificaciones de Lumi'],
+      ['CALENDARIO', 'Crear eventos en tu calendario'],
+      ['MICROFONO', 'Hablar por voz'],
+      ['CAMARA', 'Usar la linterna']
+    ];
+    cont.innerHTML =
+      '<div class="permcard' + (c.accesibilidad ? ' ok' : '') + '"><div><b>Servicio de accesibilidad</b>' +
+      '<p class="sub">' + (c.accesibilidad ? 'Activo. Lumi puede controlar la pantalla y otras apps.' : 'Inactivo. Necesario para controlar la pantalla y otras apps.') + '</p></div>' +
+      '<button class="btn small" onclick="Lumi.openSetting(\'accesibilidad\')">' + (c.accesibilidad ? 'Abrir' : 'Activar') + '</button></div>' +
+      '<div class="permcard' + (c.notificaciones ? ' ok' : '') + '"><div><b>Acceso a notificaciones</b>' +
+      '<p class="sub">' + (c.notificaciones ? 'Activo. Lumi puede leer y resumir tus avisos.' : 'Inactivo. Necesario para leer tus notificaciones.') + '</p></div>' +
+      '<button class="btn small" onclick="Lumi.openSetting(\'notificaciones_acceso\')">' + (c.notificaciones ? 'Abrir' : 'Activar') + '</button></div>' +
+      '<div class="permcard ok"><div><b>Batería</b><p class="sub">' + (c.bateria != null ? c.bateria + '%' : '—') + ' · ' + (c.modelo || 'Android') + ' ' + (c.android || '') + '</p></div>' +
+      '<button class="btn small" onclick="Lumi.openSetting(\'bateria\')">Optimizar</button></div>' +
+      filas.map(([k, d]) => {
+        const falta = faltan.has(k);
+        return '<div class="permcard' + (falta ? '' : ' ok') + '"><div><b>' + k + '</b><p class="sub">' + d + '</p></div>' +
+          (falta ? '<button class="btn small" onclick="Lumi.askPermission(\'' + k + '\')">Conceder</button>' : '<span class="pill okpill">concedido</span>') + '</div>';
+      }).join('');
+  }
+
+  function askPermission(p) {
+    const r = LumiDevice.invocar('requestPermission', String(p || ''));
+    toast(r && r.ok ? 'Solicitado' : 'No se pudo solicitar');
+    setTimeout(renderPerms, 900);
+  }
+  function openSetting(d) {
+    if (!LumiDevice.hayNativo()) { toast('Solo en el APK'); return; }
+    const r = LumiDevice.invocar('openSettings', String(d || 'ajustes'));
+    if (!r || r.ok === false) toast('No se pudo abrir Ajustes');
+  }
+
+  /* ================================================================
+     CONFIGURACIÓN GENERAL
+     ================================================================ */
+  function saveName() {
+    const v = $('#nameInput').value.trim();
+    if (!v) { toast('Escribe tu nombre para comenzar ✦'); return; }
+    cfg.name = v; set('cfg', cfg);
+    $('#onboarding').classList.add('hidden');
+    apply(); go('s-home');
+    setTimeout(() => speak('Hola ' + v + '. Soy Lumi.'), 300);
+  }
+  function rename(v) { if (v.trim()) { cfg.name = v.trim(); set('cfg', cfg); apply(); } }
+  function accent(c) { cfg.accent = c; set('cfg', cfg); apply(); }
+  function toggle(sw) { cfg[sw.dataset.k] = !cfg[sw.dataset.k]; set('cfg', cfg); apply(); }
+  function wipe() {
+    if (!confirm('¿Borrar todos los datos de Lumi? Esto incluye la conversación, las tareas y las claves de IA.')) return;
+    const claves = LumiCore.cfg();
+    localStorage.clear();
+    LumiCore.guardarCfg(claves); // conserva las claves para no obligar a reconfigurar
+    location.reload();
+  }
+
+  function setMode(m) {
+    const c = LumiCore.cfg();
+    c.mode = LumiCore.MODOS[m] ? m : 'total';
+    LumiCore.guardarCfg(c);
+    $$('.modebtn').forEach(b => b.classList.toggle('active', b.dataset.m === c.mode));
+    toast('Modo: ' + LumiCore.MODOS[c.mode].etiqueta);
+  }
+
+  /* ================================================================
+     ARRANQUE
+     ================================================================ */
+  function init() {
+    try {
+      const tick = () => { const c = $('#clock'); if (c) c.textContent = hm(); };
+      tick(); setInterval(tick, 15000);
+      apply();
+
+      if (!cfg.name && $('#onboarding')) $('#onboarding').classList.remove('hidden');
+
+      grid('#actionsGrid', ACTIONS);
+      grid('#appsGrid', APPS);
+      renderChat(false); renderTasks(); renderCal(); renderPlaylist(); renderMood(); renderAI(); renderPerms();
+
+      const c = LumiCore.cfg();
+      $$('.modebtn').forEach(b => b.classList.toggle('active', b.dataset.m === c.mode));
+
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      }
+
+      // Diagnóstico silencioso: si no hay ningún motor, avisamos una vez.
+      const activos = LumiCore.estado().filter(p => p.configurado).length;
+      if (!activos) {
+        setTimeout(() => toast('Lumi está en modo local. Configura un motor de IA en Ajustes → IA.'), 1400);
+      }
+    } catch (e) {
+      console.error('Lumi init error', e);
+      toast('Lumi tuvo un problema al iniciar. Recarga la app.');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  const API = {
+    go, send, clearChat, toggleVoice, startDictation, speakTest, speak,
+    togglePlay, nextTrack, prevTrack, toggleBreath, mood, wellMsg,
+    addTask, addTaskFrom, checkTask, delTask, shiftMonth, addEvent, delEvent,
+    saveName, rename, accent, toggle, wipe, openExternal,
+    renderAI, saveKey, toggleProvider, setAccount, setProxy, testProvider, probarTodo, openLink,
+    renderPerms, askPermission, openSetting, setMode,
+    onVoiceResult, onVoiceState
+  };
+  window.Lumi = API;
+  return API;
+})();

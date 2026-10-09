@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumiweg</string>
+    <string name="accesibilidad_label">Lumiweg — control de pantalla</string>
+    <string name="accesibilidad_desc">Permite a Lumi volver atrás, ir al inicio, abrir recientes, desplegar las notificaciones y bloquear la pantalla cuando se lo pidas por voz o chat. Lumi no lee el contenido de la pantalla.</string>
+    <string name="notificaciones_label">Lumiweg — lectura de notificaciones</string>
+</resources>
