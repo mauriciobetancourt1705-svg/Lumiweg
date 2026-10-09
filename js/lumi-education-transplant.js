@@ -133,39 +133,14 @@ async function requestSupport(topic){const detail=prompt('¿Qué necesitas?')||'
 function normSpeech(t){return String(t||'').toLowerCase().replace(new RegExp('[^\\p{L}\\p{N}]+','gu'),' ').replace(/\\s+/g,' ').trim()} function collapseSpeech(t){const w=String(t||'').trim().split(/\\s+/).filter(Boolean);if(w.length<2)return String(t||'').trim();const o=[];for(let i=0;i<w.length;){let n=1;for(let z=1;z<=Math.floor((w.length-i)/2);z++){let a=w.slice(i,i+z).map(normSpeech),j=i+z,r=1;while(j+z<=w.length&&w.slice(j,j+z).map(normSpeech).every((x,k)=>x===a[k])){r++;j+=z}if(r>1)n=Math.max(n,z*r)}o.push(w.slice(i,i+n).join(' '));i+=n}return o.join(' ').replace(/\\s+/g,' ').trim()} function mergeSpeech(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!a)return b;if(!b)return a;const an=normSpeech(a),bn=normSpeech(b);if(an===bn||an.includes(bn))return a;if(bn.includes(an))return b;const aw=an.split(' '),bw=bn.split(' ');let k=0;for(let n=1;n<=Math.min(aw.length,bw.length);n++)if(aw.slice(-n).join(' ')===bw.slice(0,n).join(' '))k=n;return(a+' '+b.split(/\\s+/).slice(k).join(' ')).trim()} async function speakLumi(t){
   const x=String(t||'').replace(/[*#_]/g,'').replace(/\s+/g,' ').trim();
   if(!x)return;
-  const resumeNative=()=>{if(window.__lumiAssistantActive&&window.AndroidLumi?.resumeAssistantMic)setTimeout(()=>window.AndroidLumi.resumeAssistantMic(),220)};
+  const done=()=>{voiceSpeaking=false;updateLumiCallUI();if(window.__lumiAssistantActive&&window.AndroidLumi?.resumeAssistantMic)setTimeout(()=>window.AndroidLumi.resumeAssistantMic(),220);if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,180);else if(voiceConversation)setTimeout(startVoiceLoop,180)};
   voiceSpeaking=true;updateLumiCallUI();
-  if(window.__lumiAssistantActive&&window.AndroidLumi?.pauseAssistantMic)window.AndroidLumi.pauseAssistantMic();
-  try{
-    const r=await fetch(AI_ENDPOINT.replace(/\/chat$/,'/tts'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:x,voice:currentLumiVoice()})});
-    const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.audioBase64){
-      const bytes=Uint8Array.from(atob(d.audioBase64),c=>c.charCodeAt(0));
-      const audio=new Audio(URL.createObjectURL(new Blob([bytes],{type:d.mimeType||'audio/wav'})));
-      audio.onended=()=>{voiceSpeaking=false;updateLumiCallUI();URL.revokeObjectURL(audio.src);resumeNative();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,180);else if(voiceConversation)setTimeout(startVoiceLoop,180)};
-      audio.onerror=()=>{voiceSpeaking=false;updateLumiCallUI();URL.revokeObjectURL(audio.src);resumeNative();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,120)};
-      await audio.play();return;
-    }
-  }catch{}
+  if(window.__lumiAssistantActive&&window.AndroidLumi?.pauseAssistantMic)try{window.AndroidLumi.pauseAssistantMic()}catch{}
   if(window.AndroidLumi&&typeof window.AndroidLumi.speak==='function'){
-    try{
-      window.__lumiNativeSpeechHandler=()=>{voiceSpeaking=false;updateLumiCallUI();resumeNative();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,180);else if(voiceConversation)setTimeout(startVoiceLoop,180)};
-      window.AndroidLumi.speak(x);
-      return;
-    }catch{window.__lumiNativeSpeechHandler=null}
+    try{window.__lumiNativeSpeechHandler=done;window.AndroidLumi.speak(x);return}catch(e){window.__lumiNativeSpeechHandler=null}
   }
-  try{
-    if(window.speechSynthesis){
-      speechSynthesis.cancel();
-      const voices=speechSynthesis.getVoices();
-      const v=voices.find(v=>/^es(-|_)/i.test(v.lang)&&/(Google|Microsoft|Natural|Neural)/i.test(v.name))||voices.find(v=>/^es(-|_)/i.test(v.lang));
-      const u=new SpeechSynthesisUtterance(x);u.lang='es-ES';u.voice=v||null;u.rate=.90;u.pitch=.88;
-      u.onend=()=>{voiceSpeaking=false;updateLumiCallUI();resumeNative();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,200);else if(voiceConversation)setTimeout(startVoiceLoop,150)};
-      u.onerror=()=>{voiceSpeaking=false;updateLumiCallUI();resumeNative();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,150);else if(voiceConversation)setTimeout(startVoiceLoop,150)};
-      speechSynthesis.speak(u);return;
-    }
-  }catch{}
-  voiceSpeaking=false;updateLumiCallUI();resumeNative();if(window.__lumiPrivateCallActive)setTimeout(startPrivateVoiceLoop,200);else if(voiceConversation)setTimeout(startVoiceLoop,150)
+  try{if(window.speechSynthesis&&typeof SpeechSynthesisUtterance!=='undefined'){speechSynthesis.cancel();const vs=speechSynthesis.getVoices();const v=vs.find(v=>/^es(-|_)/i.test(v.lang)&&/(Google|Microsoft|Natural|Neural)/i.test(v.name))||vs.find(v=>/^es(-|_)/i.test(v.lang));const u=new SpeechSynthesisUtterance(x);u.lang='es-ES';u.voice=v||null;u.rate=.92;u.pitch=1;u.onend=done;u.onerror=done;speechSynthesis.speak(u);return}}catch(e){console.warn('Lumi TTS fallback',e)}
+  done();toast('No hay una voz instalada disponible. Revisa Ajustes de texto a voz de Android.');
 }
 function stopVoice(){voiceConversation=false;voiceActive=false;try{voiceSession?.stop()}catch{};voiceSession=null;try{speechSynthesis?.cancel()}catch{};voiceSpeaking=false} async function ensureLumiMic(){if(window.SpeechRecognition||window.webkitSpeechRecognition)return true;if(!navigator.mediaDevices?.getUserMedia)return true;try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());return true}catch(e){toast('Lumi necesita permiso para usar el micrófono. Revisa el permiso del sitio.');return false}}
 function scheduleLumiVoiceRestart(privateMode=false,delay=260){clearTimeout(voiceRestartTimer);voiceRestartTimer=setTimeout(()=>{voiceRestartTimer=null;if(privateMode)startPrivateVoiceLoop();else startVoiceLoop()},delay)}
