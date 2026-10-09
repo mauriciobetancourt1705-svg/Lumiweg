@@ -42,7 +42,7 @@ function go(id){
 }
 const AI_ENDPOINT=(localStorage.getItem('lumi_ai_endpoint')||'https://education-bloque4-test-production.up.railway.app/chat').trim();window.LumiAIEndpoint=AI_ENDPOINT;
 let aiBusy=false;
-function aiHistory(){return chat.slice(-12).map(m=>({role:m.who==='user'?'user':'assistant',content:String(m.text||'')}))}
+function aiHistory(){const history=chat.slice(0,-1).slice(-12);return history.map(m=>({role:m.who==='user'?'user':'assistant',content:String(m.text||'')}))}
 async function askAI(text){
   if(!AI_ENDPOINT||aiBusy)return null;
   aiBusy=true;lumiState('thinking','Lumi está pensando…');guide('Estoy pensando', 'Voy a buscar la mejor forma de ayudarte.', true);
