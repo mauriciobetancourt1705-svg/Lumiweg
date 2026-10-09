@@ -2,7 +2,7 @@ name: Build Lumiweg Android APK
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "lumi-run-correcciones-voz-api-2026-10-09"]
   workflow_dispatch:
 
 permissions:
