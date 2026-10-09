@@ -496,13 +496,13 @@ const Lumi = (() => {
   function renderAI() {
     const cont = $('#aiList'); if (!cont) return;
     const c = LumiCore.cfg();
-    const lista = LumiCore.estado();
+    const lista = LumiCore.estado().filter(p => p.id === 'proxy');
     const activos = lista.filter(p => p.configurado).length;
     const resumen = $('#aiResumen');
     if (resumen) {
       resumen.innerHTML = activos
-        ? '<b>' + activos + '</b> motor(es) configurado(s). Lumi usa el primero disponible y salta al siguiente si falla o se agota.'
-        : '<b>Sin motores configurados.</b> Ahora mismo Lumi responde en modo local. Pega al menos una clave gratuita abajo.';
+        ? '<b>Backend configurado.</b> Las claves se mantienen en el servidor; Lumi se conecta por una única ruta segura.'
+        : '<b>Falta conectar el backend.</b> Pega la URL pública del servicio desplegado. Las claves de Gemini/Groq se agregan en las variables de entorno del servidor, nunca aquí.';
     }
     cont.innerHTML = lista.map(p => {
       const tiene = p.configurado;
@@ -510,14 +510,13 @@ const Lumi = (() => {
         '<div class="provhead"><div><b>' + esc(p.nombre) + '</b>' + (p.gratis ? '<span class="pill">gratis</span>' : '') + '</div>' +
         '<div class="sw' + (p.activo ? ' on' : '') + '" onclick="Lumi.toggleProvider(\'' + p.id + '\')"></div></div>' +
         '<p class="sub">' + esc(p.nota) + '</p>' +
+        (p.id === 'proxy' ? '<p class="sub">1. Despliega el backend en Railway. 2. Añade tus claves como Variables del servicio (por ejemplo GEMINI_API_KEY y GROQ_API_KEY). 3. Pega aquí únicamente la URL pública del backend.</p>' : '') +
         (p.requiereCuenta ? '<input class="kin" id="acct_' + p.id + '" placeholder="Account ID de Cloudflare" value="' + esc(c.accountId || '') + '" onchange="Lumi.setAccount(this.value)">' : '') +
         (p.requiereUrl ? '<input class="kin" id="url_' + p.id + '" placeholder="https://tu-backend.up.railway.app" value="' + esc(c.proxyUrl || '') + '" onchange="Lumi.setProxy(this.value)">' : '') +
-        '<input class="kin" id="key_' + p.id + '" type="password" placeholder="' + (tiene ? '••••••••  (guardada)' : 'Pega tu clave gratuita') + '" ' +
-        'onkeydown="if(event.key===\'Enter\')Lumi.saveKey(\'' + p.id + '\')">' +
+        (p.id !== 'proxy' ? '<input class="kin" id="key_' + p.id + '" type="password" placeholder="' + (tiene ? '••••••••  (guardada)' : 'Pega tu clave gratuita') + '" onkeydown="if(event.key===\'Enter\')Lumi.saveKey(\'' + p.id + '\')">' : '') +
         '<div class="provrow">' +
-        '<button class="btn small" onclick="Lumi.saveKey(\'' + p.id + '\')">Guardar</button>' +
-        '<button class="btn small" onclick="Lumi.testProvider(\'' + p.id + '\')">Probar</button>' +
-        '<button class="btn small ghost" onclick="Lumi.openLink(\'' + esc(p.keys) + '\')">Obtener clave</button>' +
+        (p.id !== 'proxy' ? '<button class="btn small" onclick="Lumi.saveKey(\'' + p.id + '\')">Guardar</button>' : '<button class="btn small" onclick="Lumi.setProxy(document.getElementById(\'url_proxy\').value);Lumi.testProvider(\'proxy\')">Guardar y probar</button>') +
+        '<button class="btn small ghost" onclick="Lumi.openLink(\'' + (p.id === 'proxy' ? 'https://railway.app' : esc(p.keys)) + '\')">' + (p.id === 'proxy' ? 'Abrir Railway' : 'Obtener clave') + '</button>' +
         '</div>' +
         '<p class="sub" id="st_' + p.id + '">' + (p.modelos ? 'Modelo: ' + esc(p.modelos) : '') + '</p>' +
         '</div>';
@@ -542,7 +541,13 @@ const Lumi = (() => {
     renderAI();
   }
   function setAccount(v) { const c = LumiCore.cfg(); c.accountId = String(v || '').trim(); LumiCore.guardarCfg(c); }
-  function setProxy(v) { const c = LumiCore.cfg(); c.proxyUrl = String(v || '').trim(); LumiCore.guardarCfg(c); }
+  function setProxy(v) {
+    const c = LumiCore.cfg();
+    c.proxyUrl = String(v || '').trim().replace(/\/+$/, '');
+    c.enabled.proxy = true;
+    LumiCore.guardarCfg(c);
+    toast(c.proxyUrl ? 'URL del backend guardada en este teléfono (sin claves API).' : 'URL del backend eliminada.');
+  }
   function openLink(u) {
     if (!u) return;
     if (LumiDevice.hayNativo()) LumiDevice.invocar('openExternalApp', u, '');
