@@ -256,7 +256,8 @@ const LumiCore = (() => {
       const raw = JSON.parse(localStorage.getItem(CFG_KEY));
       if (raw && typeof raw === 'object') {
         return {
-          keys: raw.keys && typeof raw.keys === 'object' ? raw.keys : {},
+          keys: {},
+
           enabled: raw.enabled && typeof raw.enabled === 'object' ? raw.enabled : {},
           order: Array.isArray(raw.order) ? raw.order : null,
           models: raw.models && typeof raw.models === 'object' ? raw.models : {},
@@ -265,6 +266,16 @@ const LumiCore = (() => {
           mode: MODOS[raw.mode] ? raw.mode : 'total',
           descubierto: raw.descubierto && typeof raw.descubierto === 'object' ? raw.descubierto : {}
         };
+        // Seguridad: eliminar del almacenamiento local las claves que versiones anteriores guardaban en el teléfono.
+        try {
+          if (raw.keys && Object.keys(raw.keys).length) {
+            localStorage.setItem(CFG_KEY, JSON.stringify({
+              keys: {}, enabled: { proxy: true }, order: ['proxy'],
+              models: {}, accountId: '', proxyUrl: typeof raw.proxyUrl === 'string' ? raw.proxyUrl : '',
+              mode: MODOS[raw.mode] ? raw.mode : 'total', descubierto: {}
+            }));
+          }
+        } catch {}
       }
     } catch {}
     return JSON.parse(JSON.stringify(DEFAULTS));
@@ -289,7 +300,8 @@ const LumiCore = (() => {
   // Orden efectivo: los que el usuario ordenó primero, luego el resto.
   function cadena() {
     const c = cfg();
-    let lista = PROVIDERS.filter(p => tieneKey(p, c) && c.enabled[p.id] !== false);
+    // Las credenciales se gestionan exclusivamente en el backend; nunca llamar a proveedores directos desde el APK.
+    let lista = PROVIDERS.filter(p => p.id === 'proxy' && tieneKey(p, c) && c.enabled[p.id] !== false);
     if (c.order && c.order.length) {
       lista.sort((a, b) => {
         const ia = c.order.indexOf(a.id), ib = c.order.indexOf(b.id);
