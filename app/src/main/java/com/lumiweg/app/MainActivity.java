@@ -275,6 +275,7 @@ public class MainActivity extends Activity {
                         @Override public void onEndOfSpeech() { }
                         @Override public void onError(int error) {
                             escuchando = false;
+                            evaluarJs("window.Lumi&&Lumi.onVoiceRecognitionError&&Lumi.onVoiceRecognitionError();");
                             evaluarJs("window.Lumi&&Lumi.onVoiceState&&Lumi.onVoiceState('No te escuché, prueba otra vez');");
                         }
                         @Override public void onResults(Bundle results) {
