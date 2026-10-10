@@ -567,9 +567,14 @@ const Lumi = (() => {
       const label = PROVIDER_LABELS[id] || id;
       const variable = p.variable || PROVIDER_VAR[id] || 'variable del proveedor';
       const r = p.ultimoResultado;
-      const diagnostico = r ? '<p class="sub ' + (r.estado === 'conectado' ? 'ok' : (r.estado === 'error' ? 'bad' : '')) + '">' +
-        esc(r.explicacion || r.estado || '') + (r.accion ? '<br><b>Siguiente paso:</b> ' + esc(r.accion) : '') +
-        (r.modelo ? '<br>Modelo probado: ' + esc(r.modelo) : '') + '</p>' : '';
+      const diagnostico = r ? '<div class="provider-diagnostic ' + (r.estado === 'conectado' ? 'diag-ok' : (r.estado === 'error' ? 'diag-error' : '')) + '">' +
+        '<div class="diag-top"><b>' + (r.estado === 'conectado' ? 'Diagnóstico: conexión correcta' : r.estado === 'sin_clave' ? 'Diagnóstico: falta configuración' : 'Diagnóstico técnico') + '</b>' +
+        (r.codigoHttp ? '<span class="diag-code">HTTP ' + esc(r.codigoHttp) + '</span>' : '') + '</div>' +
+        '<p>' + esc(r.explicacion || r.estado || '') + '</p>' +
+        (r.accion ? '<p class="diag-action"><b>Qué hacer:</b> ' + esc(r.accion) + '</p>' : '') +
+        (r.modelo ? '<p class="diag-meta">Modelo probado: ' + esc(r.modelo) + '</p>' : '') +
+        (r.comprobadoEn ? '<p class="diag-meta">Última prueba: ' + esc(new Date(r.comprobadoEn).toLocaleString('es-ES')) + '</p>' : '') +
+        (r.latenciaMs != null ? '<p class="diag-meta">Tiempo de respuesta: ' + esc(r.latenciaMs) + ' ms</p>' : '') + '</div>' : '';
       return '<div class="prov' + (elegido ? ' on' : '') + '">' +
         '<div class="provhead"><div><b>' + esc(label) + '</b>' +
         (p.configurado ? '<span class="pill">clave detectada</span>' : '<span class="pill missing-pill">sin clave</span>') +
@@ -669,6 +674,7 @@ const Lumi = (() => {
       categoria: result.categoria || '',
       codigoHttp: result.codigoHttp || 0,
       latenciaMs: result.ms || 0,
+      comprobadoEn: result.comprobadoEn || new Date().toISOString(),
       modelo: result.modelo || ''
     };
     renderBackendProviderCards();
