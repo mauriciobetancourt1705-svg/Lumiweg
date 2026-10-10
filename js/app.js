@@ -131,6 +131,7 @@ const Lumi = (() => {
 
     if (aviso) aviso.remove();
     ocupado = false;
+    if (callMode) setCallVisualState('speaking', 'Lumi está respondiendo…');
 
     const herramientas = (res.rastro || []).map(r => ({
       nombre: r.herramienta,
@@ -200,6 +201,8 @@ const Lumi = (() => {
   function startCall() {
     if (callMode) return;
     callMode = true;
+    document.body.classList.add('call-active');
+    setCallVisualState('listening', 'Lumi está escuchando. Habla con naturalidad.');
     cfg.voiceReplies = true;
     set('cfg', cfg);
     const v = $('#voiceState'); if (v) v.textContent = 'Preparando llamada…';
@@ -220,6 +223,7 @@ const Lumi = (() => {
 
   function stopCall() {
     callMode = false;
+    document.body.classList.remove('call-active', 'listening', 'thinking', 'speaking');
     try { if (LumiDevice.hayNativo()) LumiDevice.invocar('stopListening'); } catch {}
     try { if (LumiDevice.hayNativo()) LumiDevice.invocar('stopSpeaking'); } catch {}
     const b = $('#callBtn'); if (b) b.textContent = '📞 Iniciar llamada con Lumi';
@@ -228,6 +232,7 @@ const Lumi = (() => {
 
   function onSpeechFinished() {
     if (!callMode) return;
+    setCallVisualState('listening', 'Lumi te escucha');
     // El TTS terminó: reabrir el micrófono para el siguiente turno.
     setTimeout(() => {
       if (!callMode || ocupado) return;
@@ -273,7 +278,19 @@ const Lumi = (() => {
   }
 
   /* Llamadas desde el lado nativo (MainActivity.java) */
+  function setCallVisualState(state, label) {
+    document.body.classList.remove('listening', 'thinking', 'speaking');
+    if (callMode) document.body.classList.add(state);
+    const s = $('#avatarStatus'); if (s) s.textContent = label || state;
+  }
+
   function onVoiceState(txt) {
+    const low = String(txt || '').toLowerCase();
+    if (callMode) {
+      if (/escuch|micrófono|microfono|reintentar/.test(low)) setCallVisualState('listening', txt);
+      else if (/pensando|consultando|procesando/.test(low)) setCallVisualState('thinking', txt);
+      else setCallVisualState('listening', txt);
+    }
     const v = $('#voiceState'); if (v) v.textContent = String(txt || '');
     const t = $('#voiceText'); if (t) t.textContent = String(txt || '');
   }
@@ -287,6 +304,7 @@ const Lumi = (() => {
   }
 
   function speak(t) {
+    if (callMode) setCallVisualState('speaking', 'Lumi está hablando…');
     if (LumiDevice.hayNativo()) { LumiDevice.invocar('speak', String(t || '')); return; }
     if (!('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(String(t || ''));
@@ -493,7 +511,29 @@ const Lumi = (() => {
   /* ================================================================
      AJUSTES · PROVEEDORES DE IA
      ================================================================ */
+  const PROVIDER_LABELS = { kimi: 'Kimi · Moonshot', claude: 'Claude · Anthropic', openai: 'OpenAI', xai: 'Grok · xAI', gemini: 'Google Gemini', groq: 'Groq', deepseek: 'DeepSeek', openrouter: 'OpenRouter', cerebras: 'Cerebras', mistral: 'Mistral', together: 'Together AI', huggingface: 'Hugging Face' };
+  function renderProviderOrder() {
+    const el = $('#providerOrderList'); if (!el) return;
+    const c = LumiCore.cfg();
+    const defaults = LumiCore.DEFAULT_PROVIDER_ORDER || Object.keys(PROVIDER_LABELS);
+    const order = [...(c.providerOrder || defaults)].filter((id, i, a) => PROVIDER_LABELS[id] && a.indexOf(id) === i);
+    defaults.forEach(id => { if (!order.includes(id)) order.push(id); });
+    c.providerOrder = order;
+    LumiCore.guardarCfg(c);
+    el.innerHTML = order.map((id, i) => '<div class="provider-order-item"><span class="order-num">' + (i + 1) + '</span><div class="order-name">' + esc(PROVIDER_LABELS[id]) + '<small class="order-note">' + (i === 0 ? 'Prioridad principal' : 'Respaldo ' + i) + '</small></div><button aria-label="Subir ' + esc(PROVIDER_LABELS[id]) + '" onclick="Lumi.moveProvider(\'' + id + '\',-1)" ' + (i === 0 ? 'disabled' : '') + '>↑</button><button aria-label="Bajar ' + esc(PROVIDER_LABELS[id]) + '" onclick="Lumi.moveProvider(\'' + id + '\',1)" ' + (i === order.length - 1 ? 'disabled' : '') + '>↓</button></div>').join('');
+  }
+  function moveProvider(id, delta) {
+    const c = LumiCore.cfg();
+    const order = [...(c.providerOrder || LumiCore.DEFAULT_PROVIDER_ORDER)];
+    const i = order.indexOf(id), j = i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    c.providerOrder = order; LumiCore.guardarCfg(c); renderProviderOrder();
+    toast('Prioridad actualizada: ' + PROVIDER_LABELS[order[0]]);
+  }
+
   function renderAI() {
+    renderProviderOrder();
     const cont = $('#aiList'); if (!cont) return;
     const c = LumiCore.cfg();
     const lista = LumiCore.estado().filter(p => p.id === 'proxy');
@@ -692,7 +732,7 @@ const Lumi = (() => {
     togglePlay, nextTrack, prevTrack, toggleBreath, mood, wellMsg,
     addTask, addTaskFrom, checkTask, delTask, shiftMonth, addEvent, delEvent,
     saveName, rename, accent, toggle, wipe, openExternal,
-    renderAI, saveKey, toggleProvider, setAccount, setProxy, testProvider, probarTodo, openLink,
+    renderAI, saveKey, toggleProvider, setAccount, setProxy, testProvider, probarTodo, openLink, moveProvider,
     renderPerms, askPermission, openSetting, setMode,
     onVoiceResult, onVoiceState, startCall, stopCall, onSpeechFinished, onVoiceRecognitionError, loadVoices
   };
