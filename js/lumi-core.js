@@ -250,7 +250,8 @@ const LumiCore = (() => {
    * ------------------------------------------------------------------ */
   const CFG_KEY = 'lumi_ai_cfg';
   const DEFAULT_PROVIDER_ORDER = ['kimi', 'claude', 'openai', 'xai', 'gemini', 'groq', 'deepseek', 'openrouter', 'cerebras', 'mistral', 'together', 'huggingface'];
-  const DEFAULTS = { keys: {}, enabled: {}, order: null, models: {}, accountId: '', proxyUrl: '', mode: 'total', descubierto: {}, providerOrder: DEFAULT_PROVIDER_ORDER.slice() };
+  const BACKEND_PUBLIC_URL = 'https://lumiweg-backend-ia-production.up.railway.app';
+  const DEFAULTS = { keys: {}, enabled: { proxy: true }, order: ['proxy'], models: {}, accountId: '', proxyUrl: BACKEND_PUBLIC_URL, mode: 'total', descubierto: {}, providerOrder: DEFAULT_PROVIDER_ORDER.slice() };
 
   function cfg() {
     try {
@@ -263,7 +264,7 @@ const LumiCore = (() => {
           order: Array.isArray(raw.order) ? raw.order : null,
           models: raw.models && typeof raw.models === 'object' ? raw.models : {},
           accountId: typeof raw.accountId === 'string' ? raw.accountId : '',
-          proxyUrl: typeof raw.proxyUrl === 'string' ? raw.proxyUrl : '',
+          proxyUrl: typeof raw.proxyUrl === 'string' && raw.proxyUrl.trim() ? raw.proxyUrl.trim() : BACKEND_PUBLIC_URL,
           mode: MODOS[raw.mode] ? raw.mode : 'total',
           descubierto: raw.descubierto && typeof raw.descubierto === 'object' ? raw.descubierto : {},
           providerOrder: Array.isArray(raw.providerOrder) ? raw.providerOrder.filter(x => DEFAULT_PROVIDER_ORDER.includes(x)) : DEFAULT_PROVIDER_ORDER.slice()
@@ -578,9 +579,45 @@ const LumiCore = (() => {
     const c = cfg();
     const p = PROVIDERS.find(x => x.id === id);
     if (!p) return { ok: false, error: 'proveedor desconocido' };
+    const t0 = Date.now();
+
+    // El panel prueba el backend real: health + catálogo + una generación de texto.
+    // Nunca solicita ni muestra claves del servidor.
+    if (id === 'proxy') {
+      const base = baseDe(p, c);
+      if (!base) return { ok: false, error: 'falta la URL pública del backend' };
+      try {
+        const h = await httpJson(base + '/health', { method: 'GET', timeout: 12000 });
+        if (!h.ok || !h.data || h.data.ok !== true) {
+          return { ok: false, error: 'Health no respondió correctamente (HTTP ' + h.status + ')' };
+        }
+        const m = await httpJson(base + '/models', { method: 'GET', timeout: 20000 });
+        if (!m.ok || !m.data || !Array.isArray(m.data.data)) {
+          return { ok: false, error: 'No se pudo leer el catálogo de modelos (HTTP ' + m.status + ')' };
+        }
+        const r = await httpJson(base + '/chat/completions', {
+          method: 'POST', timeout: 45000,
+          headers: { 'Content-Type': 'application/json', 'X-Lumi-Provider-Order': (c.providerOrder || DEFAULT_PROVIDER_ORDER).join(',') },
+          body: { model: 'auto', messages: [{ role: 'user', content: 'Responde únicamente: OK' }], temperature: 0, max_tokens: 16 }
+        });
+        if (!r.ok) return { ok: false, error: 'La API está arriba, pero la prueba de IA falló (HTTP ' + r.status + '): ' + resumenError(r.data) };
+        const respuesta = r.data && r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content;
+        if (!respuesta) return { ok: false, error: 'El backend respondió sin texto generado' };
+        const proveedores = Array.isArray(h.data.proveedores) ? h.data.proveedores : [];
+        return {
+          ok: true,
+          modelo: (r.data.lumiweg_proveedor || 'backend') + ' / ' + (r.data.model || 'auto'),
+          ms: Date.now() - t0,
+          modelos_disponibles: m.data.data.length,
+          proveedores
+        };
+      } catch (e) {
+        return { ok: false, error: 'No se pudo conectar: ' + String(e && e.message || e).slice(0, 160) };
+      }
+    }
+
     if (!tieneKey(p, c)) return { ok: false, error: 'falta la clave' };
     const modelos = await modelosDe(p, c);
-    const t0 = Date.now();
     const r = await llamarProveedor(p, c, modelos[0], {
       system: 'Responde solo con: OK', mensajes: [{ role: 'user', content: 'ping' }],
       temperature: 0, maxTokens: 16, tools: null
