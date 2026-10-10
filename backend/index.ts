@@ -45,7 +45,7 @@ const PROVEEDORES: Proveedor[] = [
   {
     id: 'claude', base: 'https://api.anthropic.com/v1', kind: 'anthropic',
     key: Bun.env.ANTHROPIC_API_KEY || Bun.env.CLAUDE_API_KEY || '',
-    modelos: ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5-20251001'],
+    modelos: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5-20251001'],
     preferir: /^claude-/i
   },
   {
@@ -57,7 +57,7 @@ const PROVEEDORES: Proveedor[] = [
   {
     id: 'deepseek', base: 'https://api.deepseek.com', kind: 'openai',
     key: Bun.env.DEEPSEEK_API_KEY || '',
-    modelos: ['deepseek-flash', 'deepseek-v4-pro'],
+    modelos: ['deepseek-chat', 'deepseek-reasoner'],
     preferir: /^deepseek-/i
   },
   {
@@ -174,19 +174,13 @@ async function llamar(p: Proveedor, model: string, body: any) {
   if (p.kind === 'gemini') {
     const { sistema, contents } = aGemini(body.messages || []);
     const gen: any = { temperature: body.temperature ?? 0.35, maxOutputTokens: body.max_tokens ?? 1200 };
-    if (body.tools?.length) {
-      gen.tools = [{
-        functionDeclarations: body.tools.map((t: any) => ({
-          name: t.function.name, description: t.function.description, parameters: t.function.parameters
-        }))
-      }];
-    }
+    const tools = body.tools?.length ? [{ functionDeclarations: body.tools.map((t: any) => ({ name: t.function.name, description: t.function.description, parameters: t.function.parameters })) }] : undefined;
     const r = await fetch(
       `${p.base}/models/${model}:generateContent?key=${encodeURIComponent(p.key)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(sistema ? { systemInstruction: { parts: [{ text: sistema }] } } : {}), contents, generationConfig: gen })
+        body: JSON.stringify({ ...(sistema ? { systemInstruction: { parts: [{ text: sistema }] } } : {}), contents, ...(tools ? { tools } : {}), generationConfig: gen })
       }
     );
     const d: any = await r.json();
@@ -283,7 +277,9 @@ Bun.serve({
         return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
       });
     };
-    let cadena = ordenarPorPreferencia(disponibles);
+    const soloProveedor = (req.headers.get('X-Lumi-Provider-Only') || '').trim().toLowerCase();
+    let cadena = ordenarPorPreferencia(soloProveedor ? disponibles.filter(p => p.id === soloProveedor) : disponibles);
+    if (soloProveedor && !cadena.length) return json({ error: { message: 'Proveedor no configurado: ' + soloProveedor } }, 404);
     if (pedido !== 'auto') {
       const exacto = disponibles.filter(p => p.modelos.includes(pedido));
       const porPrefijo = disponibles.filter(p => {
