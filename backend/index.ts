@@ -143,6 +143,26 @@ async function descubrir(p: Proveedor): Promise<string[]> {
 /* --------------------------------------------------------------------------
    Adaptadores
    -------------------------------------------------------------------------- */
+function normalizarMensajes(mensajes: any[]) {
+  return mensajes.map((m: any) => {
+    if (!m || typeof m !== 'object') return m;
+    const copia: any = { ...m };
+    if (copia.role === 'assistant' && Array.isArray(copia.tool_calls)) {
+      copia.tool_calls = copia.tool_calls.map((tc: any) => ({
+        ...tc,
+        type: tc?.type || 'function',
+        function: {
+          name: String(tc?.function?.name || ''),
+          arguments: typeof tc?.function?.arguments === 'string'
+            ? tc.function.arguments
+            : JSON.stringify(tc?.function?.arguments ?? {})
+        }
+      }));
+    }
+    return copia;
+  });
+}
+
 function aGemini(mensajes: any[]) {
   const sistema = mensajes.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
   const contents = mensajes
@@ -267,6 +287,9 @@ Bun.serve({
     }
 
     // El modelo pedido decide el proveedor; «auto» o desconocido → cadena completa.
+    // Normaliza llamadas a herramientas que algunas versiones del cliente envían
+    // sin tool_calls[].type; proveedores OpenAI-compatible rechazan ese formato.
+    body.messages = normalizarMensajes(body.messages);
     const pedido = String(body.model || 'auto');
     const ordenPreferido = (req.headers.get('X-Lumi-Provider-Order') || '')
       .split(',').map((x: string) => x.trim().toLowerCase()).filter(Boolean);
