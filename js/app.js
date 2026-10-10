@@ -608,11 +608,22 @@ const Lumi = (() => {
   }
 
   async function probarTodo() {
-    const lista = LumiCore.estado().filter(p => p.configurado);
-    if (!lista.length) { toast('Configura al menos un motor'); return; }
-    toast('Probando ' + lista.length + ' motores…');
-    for (const p of lista) await testProvider(p.id);
-    toast('Prueba terminada');
+    const resumen = $('#aiResumen');
+    if (resumen) resumen.textContent = 'Comprobando Railway y enviando peticiones reales a cada proveedor configurado…';
+    toast('Probando conexiones reales…');
+    const r = await LumiCore.probarBackendTodos();
+    if (!r.backend) {
+      if (resumen) resumen.textContent = '✕ Backend: ' + (r.error || 'no disponible');
+      toast('No se pudo conectar con el backend');
+      return;
+    }
+    const resultados = r.resultados || [];
+    const correctos = resultados.filter(x => x.ok).length;
+    const lineas = resultados.map(x => (x.ok ? '✓ ' : '✕ ') + (PROVIDER_LABELS[x.id] || x.id) + (x.ok ? ' · ' + x.ms + ' ms' : ' · ' + x.error));
+    const faltanClaude = !r.proveedoresConfigurados.includes('claude');
+    if (faltanClaude) lineas.push('○ Claude · falta añadir ANTHROPIC_API_KEY en Railway');
+    if (resumen) resumen.textContent = 'Backend conectado. Motores que respondieron: ' + correctos + '/' + resultados.length + '\\n' + lineas.join('\\n');
+    toast(correctos + '/' + resultados.length + ' motores respondieron');
   }
 
   /* ================================================================
