@@ -263,6 +263,8 @@ const ENFRIAMIENTO_MS = 15000;
 
 function explicarFallo(status: number, mensaje: string) {
   const m = mensaje.toLowerCase();
+  if (status === 521)
+    return { categoria: 'servidor_origen_inaccesible', explicacion: 'HTTP 521 significa que el intermediario o proxy no logra establecer conexión con el servidor de origen del proveedor. No demuestra por sí solo que tu clave sea incorrecta.', accion: 'Comprueba la página de estado del proveedor, su URL base y si el servicio de origen está disponible. Vuelve a probar en unos minutos.' };
   if (status === 401 || status === 403 || /invalid api key|authentication|unauthorized|api key/i.test(m))
     return { categoria: 'autenticacion', explicacion: 'El proveedor rechazó la clave. Puede estar mal copiada, revocada o no tener permisos.', accion: 'Revisa la variable de entorno de este proveedor en Railway y confirma que la clave siga activa.' };
   if (status === 402 || /payment required|billing|insufficient balance|credit/i.test(m))
