@@ -590,8 +590,13 @@ const Lumi = (() => {
     try {
       const data = await LumiCore.obtenerEstadoBackend();
       backendProviders = data.proveedores || [];
+      const cfgNow = LumiCore.cfg();
+      const select = $('#selectedBackendProvider');
+      if (select) select.innerHTML = '<option value="auto">Automático · permitir respaldo</option>' +
+        backendProviders.filter(p => p.configurado).map(p => '<option value="' + esc(p.id) + '">' + esc(PROVIDER_LABELS[p.id] || p.id) + '</option>').join('');
+      if (select) select.value = cfgNow.selectedProvider || 'auto';
       const configured = backendProviders.filter(p => p.configurado).length;
-      const selected = LumiCore.cfg().selectedProvider || 'auto';
+      const selected = cfgNow.selectedProvider || 'auto';
       const resumen = $('#aiResumen');
       if (resumen) resumen.innerHTML = '<b>Backend conectado.</b> ' + configured + '/' + backendProviders.length +
         ' proveedores tienen clave configurada en Railway. Selección actual: ' +
