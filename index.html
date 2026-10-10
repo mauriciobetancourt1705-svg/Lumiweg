@@ -62,6 +62,10 @@
   <main class="screen" id="s-voice">
     <div class="screenhead"><button class="back" onclick="Lumi.go('s-home')">←</button><b>Voz</b><span></span></div>
     <p class="voicestate" id="voiceState">Toca el orbe para hablar o inicia una llamada</p>
+    <div class="call-avatar" id="callAvatar" aria-label="Avatar de Lumi durante la llamada" role="img">
+      <div class="avatar-halo"></div><div class="avatar-face"><span class="avatar-eye left"></span><span class="avatar-eye right"></span><span class="avatar-cheek left"></span><span class="avatar-cheek right"></span><span class="avatar-mouth"></span></div>
+      <div class="avatar-caption">Lumi <small id="avatarStatus">lista para escucharte</small></div>
+    </div>
     <div class="orb big pulse-fast" id="voiceOrb" onclick="Lumi.toggleVoice()">🎙️</div>
     <div class="wave" id="wave"></div>
     <div class="voicetranscript" id="voiceText"></div>
@@ -168,6 +172,9 @@
     <div class="sec">Resumen</div>
     <p class="sub" id="aiResumen">—</p>
     <button class="btn" onclick="Lumi.probarTodo()">🔍 Probar todos los motores</button>
+    <div class="sec">Prioridad de motores del backend</div>
+    <p class="sub">Lumi intentará primero el proveedor de arriba. Si falla por cuota, clave o disponibilidad, pasará al siguiente. Usa las flechas para cambiar el orden; se guarda en este teléfono.</p>
+    <div id="providerOrderList"></div>
     <div id="aiList"></div>
     <p class="sub">Las claves se guardan solo en este teléfono (almacenamiento local de la app). No viajan a ningún servidor nuestro y no están dentro del APK.</p>
   </main>
