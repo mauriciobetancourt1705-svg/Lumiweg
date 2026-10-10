@@ -294,8 +294,10 @@ async function probarProveedor(p: Proveedor): Promise<ResultadoSalud> {
     ultimosResultados.set(p.id, resultado);
     return resultado;
   }
-  const modelo = p.modelos[0];
+  let modelo = p.modelos[0];
   try {
+    const modelosDisponibles = await descubrir(p);
+    modelo = modelosDisponibles[0] || modelo;
     const respuesta = await llamar(p, modelo, {
       model: modelo,
       messages: [{ role: 'user', content: 'Responde únicamente: OK' }],
