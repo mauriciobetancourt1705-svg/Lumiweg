@@ -186,3 +186,29 @@ input:focus { border-color:var(--accent); box-shadow:0 0 12px rgba(110,80,255,.4
 .permcard b { font-size:.85rem; color:#cfe0ff; font-weight:500; }
 .permcard .sub { text-align:left; margin:3px 0 0; }
 .permcard .btn { width:auto; margin:0; flex-shrink:0; text-align:center; }
+
+/* AVATAR INTERACTIVO DE LUMI DURANTE LLAMADAS */
+.call-avatar { display:none; position:relative; min-height:255px; margin:14px auto 18px; align-items:center; justify-content:center; flex-direction:column; overflow:hidden; border-radius:26px; background:radial-gradient(ellipse at center,#211d5c 0%,#10112f 58%,rgba(5,5,20,.2) 100%); border:1px solid rgba(127,227,255,.25); }
+.call-active #callAvatar { display:flex; }
+.call-active #voiceOrb { display:none; }
+.avatar-halo { position:absolute; width:190px; height:190px; border-radius:50%; background:radial-gradient(circle,rgba(127,227,255,.24),rgba(194,107,255,.13) 55%,transparent 72%); animation:avatarHalo 3s ease-in-out infinite; }
+.avatar-face { position:relative; width:142px; height:142px; border-radius:48% 48% 46% 46%; background:linear-gradient(145deg,#a6efff 0%,#7fe3ff 24%,#8d70f8 65%,#c26bff 100%); box-shadow:inset -9px -12px 22px rgba(31,13,96,.32),inset 7px 8px 18px rgba(255,255,255,.35),0 0 36px rgba(127,116,255,.52); animation:avatarFloat 3s ease-in-out infinite; }
+.avatar-eye { position:absolute; top:48px; width:12px; height:17px; border-radius:50%; background:#11143a; box-shadow:0 0 0 4px rgba(255,255,255,.22); animation:avatarBlink 5s infinite; }
+.avatar-eye.left { left:39px; }.avatar-eye.right { right:39px; }
+.avatar-cheek { position:absolute; top:72px; width:20px; height:10px; border-radius:50%; background:rgba(255,115,190,.5); filter:blur(2px); }
+.avatar-cheek.left { left:19px; }.avatar-cheek.right { right:19px; }
+.avatar-mouth { position:absolute; left:50%; top:78px; width:34px; height:15px; transform:translateX(-50%); border-bottom:4px solid #25184f; border-radius:0 0 28px 28px; transition:all .12s ease; }
+.avatar-caption { position:relative; margin-top:15px; font-size:1rem; font-weight:600; color:#e7eaff; letter-spacing:.6px; text-align:center; }
+.avatar-caption small { display:block; margin-top:4px; color:#9ca8e8; font-size:.72rem; font-weight:400; letter-spacing:0; }
+.call-active.listening .avatar-halo { animation-duration:1.4s; }.call-active.listening .avatar-face { box-shadow:inset -9px -12px 22px rgba(31,13,96,.32),0 0 42px rgba(127,227,255,.65); }
+.call-active.thinking .avatar-halo { animation-duration:.7s; }.call-active.thinking .avatar-face { animation:avatarThink .8s ease-in-out infinite alternate; }
+.call-active.speaking .avatar-mouth { top:74px; height:25px; width:25px; border:4px solid #25184f; border-radius:50%; background:rgba(37,24,79,.18); animation:avatarTalk .22s infinite alternate; }
+.call-active.speaking .avatar-face { animation:avatarFloat .65s ease-in-out infinite; }
+@keyframes avatarHalo { 0%,100%{transform:scale(.92);opacity:.65}50%{transform:scale(1.08);opacity:1} }
+@keyframes avatarFloat { 0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)} }
+@keyframes avatarThink { from{transform:rotate(-3deg) scale(.98)}to{transform:rotate(3deg) scale(1.03)} }
+@keyframes avatarTalk { from{transform:translateX(-50%) scaleY(.6)}to{transform:translateX(-50%) scaleY(1.15)} }
+@keyframes avatarBlink { 0%,45%,48%,100%{transform:scaleY(1)}46%,47%{transform:scaleY(.12)} }
+.provider-order-item { display:flex; align-items:center; gap:9px; padding:10px 12px; margin:7px 0; border:1px solid #292e6d; background:#10143a; border-radius:13px; }
+.provider-order-item .order-num { color:var(--accent); font-weight:700; width:22px; }.provider-order-item .order-name { flex:1; font-size:.82rem; }.provider-order-item .order-note { display:block; color:#8994c9; font-size:.66rem; margin-top:2px; }
+.provider-order-item button { border:1px solid #3a3f8f; background:#1b2053; color:#e2e7ff; border-radius:9px; padding:7px 10px; font-size:.85rem; }
