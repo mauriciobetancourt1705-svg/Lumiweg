@@ -619,7 +619,7 @@ const LumiCore = (() => {
 
   async function probarBackendTodos() {
     const c = cfg();
-    const base = (c.proxyUrl || BACKEND_PUBLIC_URL).trim().replace(/\\/+$/, '');
+    const base = (c.proxyUrl || BACKEND_PUBLIC_URL).trim().replace(/\/+$/, '');
     if (!base) return { ok: false, error: 'falta la URL del backend', resultados: [] };
     let h;
     try {
