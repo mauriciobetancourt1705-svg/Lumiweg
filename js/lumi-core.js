@@ -249,7 +249,8 @@ const LumiCore = (() => {
    * 5. CONFIGURACIÓN persistida
    * ------------------------------------------------------------------ */
   const CFG_KEY = 'lumi_ai_cfg';
-  const DEFAULTS = { keys: {}, enabled: {}, order: null, models: {}, accountId: '', proxyUrl: '', mode: 'total', descubierto: {} };
+  const DEFAULT_PROVIDER_ORDER = ['kimi', 'claude', 'openai', 'xai', 'gemini', 'groq', 'deepseek', 'openrouter', 'cerebras', 'mistral', 'together', 'huggingface'];
+  const DEFAULTS = { keys: {}, enabled: {}, order: null, models: {}, accountId: '', proxyUrl: '', mode: 'total', descubierto: {}, providerOrder: DEFAULT_PROVIDER_ORDER.slice() };
 
   function cfg() {
     try {
@@ -264,7 +265,8 @@ const LumiCore = (() => {
           accountId: typeof raw.accountId === 'string' ? raw.accountId : '',
           proxyUrl: typeof raw.proxyUrl === 'string' ? raw.proxyUrl : '',
           mode: MODOS[raw.mode] ? raw.mode : 'total',
-          descubierto: raw.descubierto && typeof raw.descubierto === 'object' ? raw.descubierto : {}
+          descubierto: raw.descubierto && typeof raw.descubierto === 'object' ? raw.descubierto : {},
+          providerOrder: Array.isArray(raw.providerOrder) ? raw.providerOrder.filter(x => DEFAULT_PROVIDER_ORDER.includes(x)) : DEFAULT_PROVIDER_ORDER.slice()
         };
         // Seguridad: eliminar del almacenamiento local las claves que versiones anteriores guardaban en el teléfono.
         try {
@@ -358,6 +360,8 @@ const LumiCore = (() => {
   async function modelosDe(p, c) {
     const manual = (c.models[p.id] || '').trim();
     if (manual) return [manual];
+    // Con backend propio se pide auto para que Railway aplique el orden de proveedores elegido.
+    if (p.id === 'proxy') return ['auto'];
     return await descubrirModelos(p, c);
   }
 
@@ -369,6 +373,7 @@ const LumiCore = (() => {
     const base = baseDe(p, c);
     const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.keys[p.id] };
     if (p.id === 'openrouter') { headers['HTTP-Referer'] = 'https://lumiweg.app'; headers['X-Title'] = 'Lumiweg'; }
+    if (p.id === 'proxy') headers['X-Lumi-Provider-Order'] = (c.providerOrder || DEFAULT_PROVIDER_ORDER).join(',');
 
     const body = {
       model,
@@ -585,7 +590,7 @@ const LumiCore = (() => {
   }
 
   return {
-    PROVIDERS, MODOS, PERSONAS: {
+    PROVIDERS, MODOS, DEFAULT_PROVIDER_ORDER, PERSONAS: {
       bienestar: PERSONA_BIENESTAR, tutor: PERSONA_TUTOR,
       oraculo: PERSONA_ORACULO, oraculoMax: PERSONA_ORACULO_MAX
     },
