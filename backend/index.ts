@@ -369,9 +369,10 @@ Bun.serve({
       });
     }
 
-    const testMatch = url.pathname.match(/^\\/providers\\/([a-z0-9_-]+)\\/test$/i);
+    const routeParts = url.pathname.split('/');
+    const testMatch = routeParts.length === 4 && routeParts[1] === 'providers' && routeParts[3] === 'test' && /^[a-z0-9_-]+$/i.test(routeParts[2]) ? routeParts : null;
     if (testMatch && req.method === 'POST') {
-      const proveedor = PROVEEDORES.find(p => p.id === testMatch[1].toLowerCase());
+      const proveedor = PROVEEDORES.find(p => p.id === testMatch[2].toLowerCase());
       if (!proveedor) return json({ error: { message: 'Proveedor desconocido. Consulta GET /providers para ver los identificadores válidos.' } }, 404);
       const resultado = await probarProveedor(proveedor);
       return json(resultado, resultado.estado === 'error' ? 502 : resultado.estado === 'sin_clave' ? 503 : 200);
