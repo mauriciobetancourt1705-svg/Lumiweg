@@ -224,3 +224,18 @@ input:focus { border-color:var(--accent); box-shadow:0 0 12px rgba(110,80,255,.4
 #backendProviderList .provhead { align-items:flex-start; }
 #backendProviderList code { color:#a8d8ff; font-size:.72rem; overflow-wrap:anywhere; }
 #selectedBackendProvider { background:#111536; color:#e2e7ff; border:1px solid #343b85; border-radius:12px; padding:12px; }
+
+
+/* Panel de diagnóstico ampliado por proveedor: estado, HTTP exacto y acción */
+.provider-diagnostic { margin-top:10px; padding:11px 12px; border-radius:12px; background:#0b102d; border:1px solid #343b85; }
+.provider-diagnostic.diag-ok { border-color:#247b69; background:rgba(20,93,75,.16); }
+.provider-diagnostic.diag-error { border-color:#9c425d; background:rgba(105,30,52,.18); }
+.diag-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.diag-top b { font-size:.76rem; color:#dfe6ff; font-weight:600; }
+.diag-code { flex-shrink:0; font-size:.7rem; font-weight:700; color:#ffb5c1; background:#421c35; border:1px solid #9c425d; border-radius:8px; padding:4px 7px; }
+.diag-ok .diag-code { color:#8ff0cf; background:#103a36; border-color:#247b69; }
+.provider-diagnostic p { font-size:.76rem; line-height:1.45; color:#b9c4ed; text-align:left; margin:5px 0 0; overflow-wrap:anywhere; }
+.provider-diagnostic .diag-action { color:#e0ddff; }
+.provider-diagnostic .diag-meta { color:#8997ce; font-size:.68rem; }
+#backendProviderList .prov { transition:border-color .2s, box-shadow .2s, transform .2s; }
+#backendProviderList .prov.on { box-shadow:0 0 18px rgba(47,191,154,.16); }
