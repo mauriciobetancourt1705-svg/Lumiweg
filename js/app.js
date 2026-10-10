@@ -114,38 +114,41 @@ const Lumi = (() => {
     push('user', t);
     if (i) i.value = '';
     renderChat(true);
-
-    const aviso = burbujaTrabajando('Lumi está pensando…');
-
-    // Ejecuta la conversación completa: el modelo puede pedir herramientas
-    // y el agent loop se encarga de ejecutarlas y devolverle el resultado.
-    const res = await LumiCore.preguntar(t, chat.slice(0, -1), {
-      herramientas: LumiDevice.esquemas(),
-      ejecutarHerramienta: LumiDevice.ejecutar,
-      contexto: LumiDevice.contexto(),
-      contextoUsuario: contextoPersonal(),
-      onIntento: (prov, model) => {
-        if (aviso) aviso.innerHTML = '<span class="dots"><i></i><i></i><i></i></span> ' + esc('Consultando ' + prov + ' (' + model + ')…');
-      }
-    });
-
-    if (aviso) aviso.remove();
-    ocupado = false;
+    const aviso = burbujaTrabajando('Conectando con Lumi…');
+    let res;
+    try {
+      res = await LumiCore.preguntar(t, chat.slice(0, -1), {
+        herramientas: LumiDevice.esquemas(),
+        ejecutarHerramienta: LumiDevice.ejecutar,
+        contexto: LumiDevice.contexto(),
+        contextoUsuario: contextoPersonal(),
+        onIntento: (prov, model) => {
+          if (aviso) aviso.innerHTML = '<span class="dots"><i></i><i></i><i></i></span> ' + esc('Consultando ' + prov + ' (' + model + ')…');
+        }
+      });
+    } catch (e) {
+      console.error('[Lumi send]', e);
+      res = {
+        texto: 'Tuve un problema al conectar con los motores de IA. Revisa Motores de IA → Estado de cada motor y prueba de nuevo. Detalle: ' + String(e && e.message || e).slice(0, 140),
+        local: true, rastro: []
+      };
+    } finally {
+      if (aviso) aviso.remove();
+      ocupado = false;
+    }
+    if (!res || !res.texto) {
+      res = { texto: 'No recibí una respuesta del motor. Abre Motores de IA y revisa la salud del proveedor seleccionado.', local: true, rastro: [] };
+    }
     if (callMode) setCallVisualState('speaking', 'Lumi está respondiendo…');
-
     const herramientas = (res.rastro || []).map(r => ({
       nombre: r.herramienta,
       ok: !(r.resultado && r.resultado.ok === false)
     }));
-
     push('lumi', res.texto, {
-      herramientas,
-      local: !!res.local,
-      proveedor: res.proveedor || null,
-      modelo: res.modelo || null
+      herramientas, local: !!res.local,
+      proveedor: res.proveedor || null, modelo: res.modelo || null
     });
     renderChat(true);
-
     if ((cfg.voiceReplies || callMode) && res.texto) speak(res.texto);
   }
 
@@ -532,35 +535,152 @@ const Lumi = (() => {
     toast('Prioridad actualizada: ' + PROVIDER_LABELS[order[0]]);
   }
 
+  const PROVIDER_VAR = {
+    groq:'GROQ_API_KEY', gemini:'GEMINI_API_KEY', openai:'OPENAI_API_KEY',
+    claude:'ANTHROPIC_API_KEY', kimi:'MOONSHOT_API_KEY', deepseek:'DEEPSEEK_API_KEY',
+    xai:'XAI_API_KEY', openrouter:'OPENROUTER_API_KEY', cerebras:'CEREBRAS_API_KEY',
+    mistral:'MISTRAL_API_KEY', together:'TOGETHER_API_KEY', huggingface:'HF_TOKEN'
+  };
+  let backendProviders = [];
+  let backendFetchBusy = false;
+
+  function estadoTexto(p) {
+    if (!p.configurado) return '<span class="health missing">● Falta clave en Railway</span>';
+    const r = p.ultimoResultado;
+    if (!r) return '<span class="health pending">● Configurada · sin prueba real</span>';
+    if (r.estado === 'conectado') return '<span class="health good">● Conectado · ' + esc(r.latenciaMs || 0) + ' ms</span>';
+    if (r.estado === 'sin_clave') return '<span class="health missing">● Falta clave en Railway</span>';
+    if (r.estado === 'enfriamiento') return '<span class="health pending">● Última prueba reciente</span>';
+    return '<span class="health bad">● Error ' + esc(r.codigoHttp || '') + ' · ' + esc(r.categoria || 'conexión') + '</span>';
+  }
+
+  function renderBackendProviderCards() {
+    const cont = $('#backendProviderList'); if (!cont) return;
+    const c = LumiCore.cfg();
+    if (!backendProviders.length) {
+      cont.innerHTML = '<p class="sub">Consultando los proveedores que reconoce Railway…</p>';
+      return;
+    }
+    cont.innerHTML = backendProviders.map(p => {
+      const id = String(p.id || '');
+      const elegido = c.selectedProvider === id;
+      const label = PROVIDER_LABELS[id] || id;
+      const variable = p.variable || PROVIDER_VAR[id] || 'variable del proveedor';
+      const r = p.ultimoResultado;
+      const diagnostico = r ? '<p class="sub ' + (r.estado === 'conectado' ? 'ok' : (r.estado === 'error' ? 'bad' : '')) + '">' +
+        esc(r.explicacion || r.estado || '') + (r.accion ? '<br><b>Siguiente paso:</b> ' + esc(r.accion) : '') +
+        (r.modelo ? '<br>Modelo probado: ' + esc(r.modelo) : '') + '</p>' : '';
+      return '<div class="prov' + (elegido ? ' on' : '') + '">' +
+        '<div class="provhead"><div><b>' + esc(label) + '</b>' +
+        (p.configurado ? '<span class="pill">clave detectada</span>' : '<span class="pill missing-pill">sin clave</span>') +
+        '</div>' + estadoTexto(p) + '</div>' +
+        '<p class="sub">Variable de Railway: <code>' + esc(variable) + '</code></p>' +
+        '<p class="sub">Modelos sugeridos: ' + esc((p.modelosSugeridos || []).slice(0, 4).join(', ') || 'Se detectan desde la API') + '</p>' +
+        diagnostico +
+        '<div class="provrow">' +
+        '<button class="btn small" onclick="Lumi.testBackendProvider(\'' + esc(id) + '\')">Probar salud real</button>' +
+        '<button class="btn small ' + (elegido ? '' : 'ghost') + '" onclick="Lumi.selectBackendProvider(\'' + esc(id) + '\')" ' + (!p.configurado ? 'disabled' : '') + '>' + (elegido ? '✓ Motor elegido' : 'Usar este motor') + '</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  async function refreshBackendProviders() {
+    if (backendFetchBusy) return;
+    backendFetchBusy = true;
+    try {
+      const data = await LumiCore.obtenerEstadoBackend();
+      backendProviders = data.proveedores || [];
+      const configured = backendProviders.filter(p => p.configurado).length;
+      const selected = LumiCore.cfg().selectedProvider || 'auto';
+      const resumen = $('#aiResumen');
+      if (resumen) resumen.innerHTML = '<b>Backend conectado.</b> ' + configured + '/' + backendProviders.length +
+        ' proveedores tienen clave configurada en Railway. Selección actual: ' +
+        esc(selected === 'auto' ? 'Automático (con respaldo)' : (PROVIDER_LABELS[selected] || selected)) +
+        '. Configurada no significa que ya haya superado una prueba real.';
+      renderBackendProviderCards();
+    } catch (e) {
+      const cont = $('#backendProviderList');
+      if (cont) cont.innerHTML = '<p class="sub bad">No pude consultar Railway: ' + esc(String(e && e.message || e)) + '</p><button class="btn small" onclick="Lumi.refreshBackendProviders()">Reintentar conexión</button>';
+      const resumen = $('#aiResumen');
+      if (resumen) resumen.textContent = 'No se pudo consultar el backend. Comprueba la URL y que el despliegue esté activo.';
+    } finally { backendFetchBusy = false; }
+  }
+
   function renderAI() {
     renderProviderOrder();
     const cont = $('#aiList'); if (!cont) return;
     const c = LumiCore.cfg();
     const lista = LumiCore.estado().filter(p => p.id === 'proxy');
-    const activos = lista.filter(p => p.configurado).length;
-    const resumen = $('#aiResumen');
-    if (resumen) {
-      resumen.innerHTML = activos
-        ? '<b>Backend configurado.</b> Las claves se mantienen en el servidor; Lumi se conecta por una única ruta segura.'
-        : '<b>Falta conectar el backend.</b> La URL pública de Lumiweg se precarga automáticamente. Las claves de OpenAI, Claude, Kimi, DeepSeek, Gemini y Groq se agregan en las variables de entorno del servidor, nunca aquí.';
-    }
     cont.innerHTML = lista.map(p => {
       const tiene = p.configurado;
       return '<div class="prov' + (tiene && p.activo ? ' on' : '') + '">' +
-        '<div class="provhead"><div><b>' + esc(p.nombre) + '</b>' + (p.gratis ? '<span class="pill">gratis</span>' : '') + '</div>' +
-        '<div class="sw' + (p.activo ? ' on' : '') + '" onclick="Lumi.toggleProvider(\'' + p.id + '\')"></div></div>' +
-        '<p class="sub">' + esc(p.nota) + '</p>' +
-        (p.id === 'proxy' ? '<p class="sub">1. Despliega el backend en Railway. 2. Añade tus claves como Variables del servicio (por ejemplo GEMINI_API_KEY y GROQ_API_KEY). 3. Pega aquí únicamente la URL pública del backend.</p>' : '') +
-        (p.requiereCuenta ? '<input class="kin" id="acct_' + p.id + '" placeholder="Account ID de Cloudflare" value="' + esc(c.accountId || '') + '" onchange="Lumi.setAccount(this.value)">' : '') +
-        (p.requiereUrl ? '<input class="kin" id="url_' + p.id + '" placeholder="https://tu-backend.up.railway.app" value="' + esc(c.proxyUrl || '') + '" onchange="Lumi.setProxy(this.value)">' : '') +
-        (p.id !== 'proxy' ? '<input class="kin" id="key_' + p.id + '" type="password" placeholder="' + (tiene ? '••••••••  (guardada)' : 'Pega tu clave gratuita') + '" onkeydown="if(event.key===\'Enter\')Lumi.saveKey(\'' + p.id + '\')">' : '') +
-        '<div class="provrow">' +
-        (p.id !== 'proxy' ? '<button class="btn small" onclick="Lumi.saveKey(\'' + p.id + '\')">Guardar</button>' : '<button class="btn small" onclick="Lumi.setProxy(document.getElementById(\'url_proxy\').value);Lumi.testProvider(\'proxy\')">Guardar y probar</button>') +
-        '<button class="btn small ghost" onclick="Lumi.openLink(\'' + (p.id === 'proxy' ? 'https://railway.app' : esc(p.keys)) + '\')">' + (p.id === 'proxy' ? 'Abrir Railway' : 'Obtener clave') + '</button>' +
-        '</div>' +
-        '<p class="sub" id="st_' + p.id + '">' + (p.modelos ? 'Modelo: ' + esc(p.modelos) : '') + '</p>' +
+        '<div class="provhead"><div><b>' + esc(p.nombre) + '</b><span class="pill">GRATIS</span></div>' +
+        '<span class="health ' + (tiene ? 'pending' : 'missing') + '">' + (tiene ? '● URL guardada' : '● Falta URL') + '</span></div>' +
+        '<p class="sub">Las claves de cada motor permanecen en Railway, nunca en el teléfono.</p>' +
+        '<input class="kin" id="url_proxy" inputmode="url" autocomplete="url" placeholder="https://tu-backend.up.railway.app" value="' + esc(c.proxyUrl || '') + '">' +
+        '<div class="provrow"><button class="btn small" onclick="Lumi.setProxy(document.getElementById(\'url_proxy\').value);Lumi.refreshBackendProviders()">Guardar URL y consultar</button>' +
+        '<button class="btn small ghost" onclick="Lumi.openLink(\'https://railway.com/project/2988aa13-56ed-4160-871d-d15ace444396/service/ea3c7282-80b5-4ed1-ae18-b13b460cf07d?environmentId=19723073-5f06-4b6b-b193-73e443e74a7e\')">Abrir Railway</button></div>' +
         '</div>';
-    }).join('');
+    }).join('') +
+    '<div class="sec">Motores disponibles en Railway</div>' +
+    '<p class="sub">Cada motor tiene su propio estado y botón de prueba. Selecciona uno para usarlo; Automático permite que Lumi recurra a otros motores configurados si falla.</p>' +
+    '<div class="prov"><div class="provhead"><b>Selección de motor</b><span class="health pending">Preferencia de chat</span></div>' +
+    '<select class="kin" id="selectedBackendProvider" onchange="Lumi.selectBackendProvider(this.value)">' +
+    '<option value="auto" ' + ((c.selectedProvider || 'auto') === 'auto' ? 'selected' : '') + '>Automático · permitir respaldo</option>' +
+    backendProviders.filter(p => p.configurado).map(p => '<option value="' + esc(p.id) + '" ' + (c.selectedProvider === p.id ? 'selected' : '') + '>' + esc(PROVIDER_LABELS[p.id] || p.id) + '</option>').join('') +
+    '</select></div>' +
+    '<div id="backendProviderList"><p class="sub">Consultando los proveedores que reconoce Railway…</p></div>';
+    renderBackendProviderCards();
+    refreshBackendProviders();
+  }
+
+  function selectBackendProvider(id) {
+    const c = LumiCore.cfg();
+    c.selectedProvider = id || 'auto';
+    LumiCore.guardarCfg(c);
+    const select = $('#selectedBackendProvider');
+    if (select) select.value = c.selectedProvider;
+    renderBackendProviderCards();
+    toast(c.selectedProvider === 'auto' ? 'Lumi usará el modo automático con respaldo.' : 'Motor seleccionado: ' + (PROVIDER_LABELS[c.selectedProvider] || c.selectedProvider));
+  }
+
+  async function testBackendProvider(id) {
+    const el = $('#backendProviderList');
+    const p = backendProviders.find(x => x.id === id);
+    if (!p) { toast('No encuentro ese motor en Railway. Actualiza la lista.'); return; }
+    if (!p.configurado) {
+      toast('Falta ' + (p.variable || PROVIDER_VAR[id] || 'la clave') + ' en Railway.');
+      return;
+    }
+    const idx = backendProviders.findIndex(x => x.id === id);
+    backendProviders[idx] = { ...p, ultimoResultado: { estado: 'probando', explicacion: 'Enviando una petición real al proveedor…' } };
+    renderBackendProviderCards();
+    const result = await LumiCore.probarProveedorBackend(id);
+    const nowP = backendProviders.find(x => x.id === id);
+    if (nowP) nowP.ultimoResultado = {
+      estado: result.estado || (result.ok ? 'conectado' : 'error'),
+      explicacion: result.ok ? 'La API aceptó la clave y generó una respuesta real.' : (result.error || 'La prueba falló.'),
+      accion: result.accion || '',
+      categoria: result.categoria || '',
+      codigoHttp: result.codigoHttp || 0,
+      latenciaMs: result.ms || 0,
+      modelo: result.modelo || ''
+    };
+    renderBackendProviderCards();
+    const resumen = $('#aiResumen');
+    if (resumen) resumen.innerHTML = '<b>' + esc(PROVIDER_LABELS[id] || id) + ':</b> ' +
+      (result.ok ? 'conectado; respondió en ' + esc(result.ms) + ' ms.' : 'no respondió correctamente: ' + esc(result.error));
+    toast(result.ok ? (PROVIDER_LABELS[id] || id) + ' funciona ✓' : 'Fallo de ' + (PROVIDER_LABELS[id] || id));
+  }
+
+  async function probarTodo() {
+    const resumen = $('#aiResumen');
+    if (resumen) resumen.textContent = 'Probando cada proveedor con una petición real. Esto puede tardar…';
+    toast('Probando motores configurados…');
+    for (const p of backendProviders.filter(x => x.configurado)) {
+      await testBackendProvider(p.id);
+    }
+    if (!backendProviders.length) await refreshBackendProviders();
   }
 
   function saveKey(id) {
@@ -743,7 +863,7 @@ const Lumi = (() => {
     togglePlay, nextTrack, prevTrack, toggleBreath, mood, wellMsg,
     addTask, addTaskFrom, checkTask, delTask, shiftMonth, addEvent, delEvent,
     saveName, rename, accent, toggle, wipe, openExternal,
-    renderAI, saveKey, toggleProvider, setAccount, setProxy, testProvider, probarTodo, openLink, moveProvider,
+    renderAI, saveKey, toggleProvider, setAccount, setProxy, testProvider, probarTodo, openLink, moveProvider, selectBackendProvider, testBackendProvider, refreshBackendProviders,
     renderPerms, askPermission, openSetting, setMode,
     onVoiceResult, onVoiceState, startCall, stopCall, onSpeechFinished, onVoiceRecognitionError, loadVoices
   };
