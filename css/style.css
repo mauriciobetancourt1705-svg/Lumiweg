@@ -212,3 +212,15 @@ input:focus { border-color:var(--accent); box-shadow:0 0 12px rgba(110,80,255,.4
 .provider-order-item { display:flex; align-items:center; gap:9px; padding:10px 12px; margin:7px 0; border:1px solid #292e6d; background:#10143a; border-radius:13px; }
 .provider-order-item .order-num { color:var(--accent); font-weight:700; width:22px; }.provider-order-item .order-name { flex:1; font-size:.82rem; }.provider-order-item .order-note { display:block; color:#8994c9; font-size:.66rem; margin-top:2px; }
 .provider-order-item button { border:1px solid #3a3f8f; background:#1b2053; color:#e2e7ff; border-radius:9px; padding:7px 10px; font-size:.85rem; }
+
+
+/* Estado de salud individual de motores remotos */
+.health { display:inline-block; font-size:.68rem; line-height:1.35; text-align:right; max-width:52%; }
+.health.good { color:#8ff0cf; }
+.health.bad, .health.missing { color:#ff9aa8; }
+.health.pending { color:#b4bee9; }
+.missing-pill { color:#ffb3bd; border-color:#a54d67; }
+.btn:disabled, button:disabled { opacity:.4; cursor:not-allowed; }
+#backendProviderList .provhead { align-items:flex-start; }
+#backendProviderList code { color:#a8d8ff; font-size:.72rem; overflow-wrap:anywhere; }
+#selectedBackendProvider { background:#111536; color:#e2e7ff; border:1px solid #343b85; border-radius:12px; padding:12px; }
