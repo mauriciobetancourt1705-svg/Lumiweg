@@ -251,7 +251,7 @@ const LumiCore = (() => {
   const CFG_KEY = 'lumi_ai_cfg';
   const DEFAULT_PROVIDER_ORDER = ['kimi', 'claude', 'openai', 'xai', 'gemini', 'groq', 'deepseek', 'openrouter', 'cerebras', 'mistral', 'together', 'huggingface'];
   const BACKEND_PUBLIC_URL = 'https://lumiweg-backend-ia-production.up.railway.app';
-  const DEFAULTS = { keys: {}, enabled: { proxy: true }, order: ['proxy'], models: {}, accountId: '', proxyUrl: BACKEND_PUBLIC_URL, mode: 'total', descubierto: {}, providerOrder: DEFAULT_PROVIDER_ORDER.slice() };
+  const DEFAULTS = { keys: {}, enabled: { proxy: true }, order: ['proxy'], models: {}, accountId: '', proxyUrl: BACKEND_PUBLIC_URL, mode: 'total', descubierto: {}, providerOrder: DEFAULT_PROVIDER_ORDER.slice(), selectedProvider: 'auto' };
 
   function cfg() {
     try {
@@ -267,7 +267,8 @@ const LumiCore = (() => {
           proxyUrl: typeof raw.proxyUrl === 'string' && raw.proxyUrl.trim() ? raw.proxyUrl.trim() : BACKEND_PUBLIC_URL,
           mode: MODOS[raw.mode] ? raw.mode : 'total',
           descubierto: raw.descubierto && typeof raw.descubierto === 'object' ? raw.descubierto : {},
-          providerOrder: Array.isArray(raw.providerOrder) ? raw.providerOrder.filter(x => DEFAULT_PROVIDER_ORDER.includes(x)) : DEFAULT_PROVIDER_ORDER.slice()
+          providerOrder: Array.isArray(raw.providerOrder) ? raw.providerOrder.filter(x => DEFAULT_PROVIDER_ORDER.includes(x)) : DEFAULT_PROVIDER_ORDER.slice(),
+          selectedProvider: typeof raw.selectedProvider === 'string' ? raw.selectedProvider : 'auto'
         };
         // Seguridad: eliminar del almacenamiento local las claves que versiones anteriores guardaban en el teléfono.
         try {
@@ -374,7 +375,10 @@ const LumiCore = (() => {
     const base = baseDe(p, c);
     const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.keys[p.id] };
     if (p.id === 'openrouter') { headers['HTTP-Referer'] = 'https://lumiweg.app'; headers['X-Title'] = 'Lumiweg'; }
-    if (p.id === 'proxy') headers['X-Lumi-Provider-Order'] = (c.providerOrder || DEFAULT_PROVIDER_ORDER).join(',');
+    if (p.id === 'proxy') {
+      headers['X-Lumi-Provider-Order'] = (c.providerOrder || DEFAULT_PROVIDER_ORDER).join(',');
+      if (c.selectedProvider && c.selectedProvider !== 'auto') headers['X-Lumi-Provider-Only'] = c.selectedProvider;
+    }
 
     const body = {
       model,
@@ -575,6 +579,44 @@ const LumiCore = (() => {
     return { texto: r.texto, proveedor: r.proveedor && r.proveedor.nombre, modelo: r.modelo, rastro: r.rastro || [] };
   }
 
+  async function obtenerEstadoBackend() {
+    const c = cfg();
+    const base = (c.proxyUrl || BACKEND_PUBLIC_URL).trim().replace(/\/+$/, '');
+    if (!base) throw new Error('Falta la URL pública del backend.');
+    const r = await httpJson(base + '/providers', { method: 'GET', timeout: 15000 });
+    if (!r.ok || !r.data || !Array.isArray(r.data.proveedores)) {
+      throw new Error('No se pudo leer el estado de proveedores (HTTP ' + r.status + ').');
+    }
+    return r.data;
+  }
+
+  async function probarProveedorBackend(id) {
+    const c = cfg();
+    const base = (c.proxyUrl || BACKEND_PUBLIC_URL).trim().replace(/\/+$/, '');
+    if (!base) return { ok: false, error: 'Falta la URL pública del backend.' };
+    const t0 = Date.now();
+    try {
+      const r = await httpJson(base + '/providers/' + encodeURIComponent(id) + '/test', {
+        method: 'POST', timeout: 55000,
+        headers: { 'Content-Type': 'application/json' },
+        body: {}
+      });
+      const d = r.data || {};
+      return {
+        ok: r.ok && d.estado === 'conectado',
+        id, estado: d.estado || (r.ok ? 'desconocido' : 'error'),
+        ms: d.latenciaMs != null ? d.latenciaMs : Date.now() - t0,
+        modelo: d.modelo || '',
+        error: d.explicacion || d.error || ('HTTP ' + r.status),
+        accion: d.accion || '',
+        categoria: d.categoria || '',
+        codigoHttp: d.codigoHttp || r.status
+      };
+    } catch (e) {
+      return { ok: false, id, estado: 'error', ms: Date.now() - t0, error: String(e && e.message || e).slice(0, 180) };
+    }
+  }
+
   async function probarBackendTodos() {
     const c = cfg();
     const base = (c.proxyUrl || BACKEND_PUBLIC_URL).trim().replace(/\\/+$/, '');
@@ -661,7 +703,7 @@ const LumiCore = (() => {
       bienestar: PERSONA_BIENESTAR, tutor: PERSONA_TUTOR,
       oraculo: PERSONA_ORACULO, oraculoMax: PERSONA_ORACULO_MAX
     },
-    cfg, guardarCfg, estado, preguntar, probar, probarBackendTodos, ejecutar,
+    cfg, guardarCfg, estado, preguntar, probar, probarBackendTodos, obtenerEstadoBackend, probarProveedorBackend, ejecutar,
     modelosDe, descubrirModelos, httpJson, respuestaLocal, cadena, tieneKey
   };
 })();
