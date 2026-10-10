@@ -575,6 +575,36 @@ const LumiCore = (() => {
     return { texto: r.texto, proveedor: r.proveedor && r.proveedor.nombre, modelo: r.modelo, rastro: r.rastro || [] };
   }
 
+  async function probarBackendTodos() {
+    const c = cfg();
+    const base = (c.proxyUrl || BACKEND_PUBLIC_URL).trim().replace(/\\/+$/, '');
+    if (!base) return { ok: false, error: 'falta la URL del backend', resultados: [] };
+    let h;
+    try {
+      h = await httpJson(base + '/health', { method: 'GET', timeout: 12000 });
+    } catch (e) {
+      return { ok: false, error: 'No se pudo conectar con Railway: ' + String(e && e.message || e).slice(0, 120), resultados: [] };
+    }
+    if (!h.ok || !h.data || h.data.ok !== true) return { ok: false, error: 'El backend no pasó /health (HTTP ' + h.status + ')', resultados: [] };
+    const disponibles = Array.isArray(h.data.proveedores) ? h.data.proveedores : [];
+    const resultados = [];
+    for (const id of disponibles) {
+      const inicio = Date.now();
+      try {
+        const r = await httpJson(base + '/chat/completions', {
+          method: 'POST', timeout: 45000,
+          headers: { 'Content-Type': 'application/json', 'X-Lumi-Provider-Only': id },
+          body: { model: 'auto', messages: [{ role: 'user', content: 'Responde únicamente: OK' }], temperature: 0, max_tokens: 16 }
+        });
+        const texto = r.data && r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content;
+        resultados.push({ id, ok: r.ok && !!texto, ms: Date.now() - inicio, error: r.ok && texto ? '' : ('HTTP ' + r.status + ': ' + resumenError(r.data)) });
+      } catch (e) {
+        resultados.push({ id, ok: false, ms: Date.now() - inicio, error: String(e && e.message || e).slice(0, 140) });
+      }
+    }
+    return { ok: resultados.some(x => x.ok), backend: true, proveedoresConfigurados: disponibles, resultados };
+  }
+
   async function probar(id) {
     const c = cfg();
     const p = PROVIDERS.find(x => x.id === id);
@@ -631,7 +661,7 @@ const LumiCore = (() => {
       bienestar: PERSONA_BIENESTAR, tutor: PERSONA_TUTOR,
       oraculo: PERSONA_ORACULO, oraculoMax: PERSONA_ORACULO_MAX
     },
-    cfg, guardarCfg, estado, preguntar, probar, ejecutar,
+    cfg, guardarCfg, estado, preguntar, probar, probarBackendTodos, ejecutar,
     modelosDe, descubrirModelos, httpJson, respuestaLocal, cadena, tieneKey
   };
 })();
