@@ -274,7 +274,16 @@ Bun.serve({
 
     // El modelo pedido decide el proveedor; «auto» o desconocido → cadena completa.
     const pedido = String(body.model || 'auto');
-    let cadena = disponibles;
+    const ordenPreferido = (req.headers.get('X-Lumi-Provider-Order') || '')
+      .split(',').map((x: string) => x.trim().toLowerCase()).filter(Boolean);
+    const ordenarPorPreferencia = (lista: Proveedor[]) => {
+      if (!ordenPreferido.length) return lista;
+      return [...lista].sort((a, b) => {
+        const ia = ordenPreferido.indexOf(a.id), ib = ordenPreferido.indexOf(b.id);
+        return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+      });
+    };
+    let cadena = ordenarPorPreferencia(disponibles);
     if (pedido !== 'auto') {
       const exacto = disponibles.filter(p => p.modelos.includes(pedido));
       const porPrefijo = disponibles.filter(p => {
