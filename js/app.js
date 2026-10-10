@@ -542,7 +542,7 @@ const Lumi = (() => {
     if (resumen) {
       resumen.innerHTML = activos
         ? '<b>Backend configurado.</b> Las claves se mantienen en el servidor; Lumi se conecta por una única ruta segura.'
-        : '<b>Falta conectar el backend.</b> Pega la URL pública del servicio desplegado. Las claves de Gemini/Groq se agregan en las variables de entorno del servidor, nunca aquí.';
+        : '<b>Falta conectar el backend.</b> La URL pública de Lumiweg se precarga automáticamente. Las claves de OpenAI, Claude, Kimi, DeepSeek, Gemini y Groq se agregan en las variables de entorno del servidor, nunca aquí.';
     }
     cont.innerHTML = lista.map(p => {
       const tiene = p.configurado;
@@ -622,7 +622,7 @@ const Lumi = (() => {
     const lineas = resultados.map(x => (x.ok ? '✓ ' : '✕ ') + (PROVIDER_LABELS[x.id] || x.id) + (x.ok ? ' · ' + x.ms + ' ms' : ' · ' + x.error));
     const faltanClaude = !r.proveedoresConfigurados.includes('claude');
     if (faltanClaude) lineas.push('○ Claude · falta añadir ANTHROPIC_API_KEY en Railway');
-    if (resumen) resumen.textContent = 'Backend conectado. Motores que respondieron: ' + correctos + '/' + resultados.length + '\\n' + lineas.join('\\n');
+    if (resumen) resumen.innerHTML = '<b>Backend conectado.</b> Motores que respondieron: ' + correctos + '/' + resultados.length + '<br>' + lineas.map(esc).join('<br>');
     toast(correctos + '/' + resultados.length + ' motores respondieron');
   }
 
