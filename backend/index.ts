@@ -241,12 +241,139 @@ const CORS: Record<string, string> = {
 const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
 
+
+/* --------------------------------------------------------------------------
+   Diagnóstico por proveedor: estado de configuración + prueba real aislada.
+   No devuelve claves ni mensajes crudos que pudieran contener datos sensibles.
+   -------------------------------------------------------------------------- */
+type ResultadoSalud = {
+  proveedor: string;
+  estado: 'conectado' | 'error' | 'sin_clave' | 'enfriamiento';
+  comprobadoEn: string;
+  latenciaMs?: number;
+  codigoHttp?: number;
+  categoria?: string;
+  explicacion: string;
+  accion: string;
+  modelo?: string;
+};
+const ultimosResultados = new Map<string, ResultadoSalud>();
+const ultimaPrueba = new Map<string, number>();
+const ENFRIAMIENTO_MS = 15000;
+
+function explicarFallo(status: number, mensaje: string) {
+  const m = mensaje.toLowerCase();
+  if (status === 401 || status === 403 || /invalid api key|authentication|unauthorized|api key/i.test(m))
+    return { categoria: 'autenticacion', explicacion: 'El proveedor rechazó la clave. Puede estar mal copiada, revocada o no tener permisos.', accion: 'Revisa la variable de entorno de este proveedor en Railway y confirma que la clave siga activa.' };
+  if (status === 402 || /payment required|billing|insufficient balance|credit/i.test(m))
+    return { categoria: 'saldo_o_facturacion', explicacion: 'La cuenta del proveedor no tiene saldo disponible o necesita configurar la facturación.', accion: 'Revisa el saldo, el método de pago y el estado de facturación en el panel del proveedor.' };
+  if (status === 429 || /quota|rate.?limit|resource exhausted|too many requests/i.test(m))
+    return { categoria: 'cuota_o_limite', explicacion: 'El proveedor limitó la solicitud por cuota agotada o demasiadas peticiones. No significa necesariamente que la clave esté dañada.', accion: 'Revisa la cuota, los límites por minuto y el proyecto asociado a la clave; espera y vuelve a probar.' };
+  if (status === 400 || /invalid.*(model|argument|request)|unsupported parameter/i.test(m))
+    return { categoria: 'solicitud_o_modelo', explicacion: 'El proveedor no aceptó la solicitud. El modelo puede no existir para tu cuenta o el formato enviado puede no ser compatible.', accion: 'Comprueba el identificador exacto del modelo y sus parámetros compatibles.' };
+  if (status === 404 || /model.*not found|not_found/i.test(m))
+    return { categoria: 'modelo_no_disponible', explicacion: 'La API respondió, pero no encontró el modelo solicitado o esa ruta no está disponible.', accion: 'Actualiza el identificador del modelo desde la lista oficial de modelos de tu proveedor.' };
+  if (status === 408 || status === 504 || /timeout|timed out|aborted/i.test(m))
+    return { categoria: 'tiempo_agotado', explicacion: 'El proveedor tardó demasiado en responder y se agotó el tiempo de espera.', accion: 'Vuelve a probar en unos segundos y revisa si el proveedor tiene una incidencia.' };
+  if (status >= 500 || status === 502 || status === 503 || status === 529)
+    return { categoria: 'proveedor_no_disponible', explicacion: 'El servicio remoto reportó un error interno o está temporalmente saturado.', accion: 'Espera unos minutos y vuelve a probar; revisa la página de estado oficial del proveedor.' };
+  return { categoria: 'error_de_conexion', explicacion: 'No se pudo completar la prueba. Puede ser un fallo de red, una respuesta inesperada o una incompatibilidad de la API.', accion: 'Revisa los detalles técnicos resumidos y vuelve a ejecutar la prueba.' };
+}
+
+async function probarProveedor(p: Proveedor): Promise<ResultadoSalud> {
+  const ahora = Date.now();
+  const anterior = ultimaPrueba.get(p.id) || 0;
+  if (ahora - anterior < ENFRIAMIENTO_MS) {
+    const guardado = ultimosResultados.get(p.id);
+    if (guardado) return { ...guardado, estado: 'enfriamiento', explicacion: 'La prueba se ejecutó hace poco; se muestra el último resultado para evitar consumir cuota innecesaria.', accion: 'Espera unos segundos antes de volver a probar.' };
+  }
+  ultimaPrueba.set(p.id, ahora);
+  const inicio = Date.now();
+  if (!p.key) {
+    const resultado: ResultadoSalud = { proveedor: p.id, estado: 'sin_clave', comprobadoEn: new Date().toISOString(), categoria: 'clave_no_configurada', explicacion: 'Railway no tiene una clave configurada para este proveedor.', accion: 'Añade la variable de entorno indicada para este proveedor en Railway y vuelve a desplegar.', modelo: p.modelos[0] };
+    ultimosResultados.set(p.id, resultado);
+    return resultado;
+  }
+  const modelo = p.modelos[0];
+  try {
+    const respuesta = await llamar(p, modelo, {
+      model: modelo,
+      messages: [{ role: 'user', content: 'Responde únicamente: OK' }],
+      max_tokens: 12,
+      temperature: 0
+    });
+    const resultado: ResultadoSalud = {
+      proveedor: p.id, estado: 'conectado', comprobadoEn: new Date().toISOString(),
+      latenciaMs: Date.now() - inicio, categoria: 'correcto',
+      explicacion: 'La clave fue aceptada y el proveedor devolvió una respuesta real de prueba.',
+      accion: 'No se requiere ninguna acción.', modelo
+    };
+    ultimosResultados.set(p.id, resultado);
+    return resultado;
+  } catch (e: any) {
+    const status = Number(e?.status) || 0;
+    const detalle = String(e?.message || e).slice(0, 500);
+    const info = explicarFallo(status, detalle);
+    const resultado: ResultadoSalud = {
+      proveedor: p.id, estado: 'error', comprobadoEn: new Date().toISOString(),
+      latenciaMs: Date.now() - inicio, ...(status ? { codigoHttp: status } : {}),
+      ...info, modelo
+    };
+    ultimosResultados.set(p.id, resultado);
+    console.error('[diagnostico]', p.id, status, info.categoria, detalle.slice(0, 180));
+    return resultado;
+  }
+}
+
 Bun.serve({
   port: PORT,
   idleTimeout: 120,
   async fetch(req) {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(req.url);
+
+    if (url.pathname === '/providers' && req.method === 'GET') {
+      return json({
+        servicio: 'lumiweg-ai',
+        comprobadoEn: new Date().toISOString(),
+        resumen: { total: PROVEEDORES.length, configurados: conClave().length, sinClave: PROVEEDORES.length - conClave().length },
+        proveedores: PROVEEDORES.map(p => ({
+          id: p.id, configurado: Boolean(p.key), modelosSugeridos: p.modelos,
+          variable: p.id === 'gemini' ? 'GEMINI_API_KEY o GOOGLE_API_KEY'
+            : p.id === 'claude' ? 'ANTHROPIC_API_KEY o CLAUDE_API_KEY'
+            : p.id === 'kimi' ? 'MOONSHOT_API_KEY o KIMI_API_KEY'
+            : p.id === 'huggingface' ? 'HF_TOKEN o HUGGINGFACE_API_KEY'
+            : ({ groq:'GROQ_API_KEY', xai:'XAI_API_KEY', openai:'OPENAI_API_KEY', deepseek:'DEEPSEEK_API_KEY', openrouter:'OPENROUTER_API_KEY', cerebras:'CEREBRAS_API_KEY', mistral:'MISTRAL_API_KEY', together:'TOGETHER_API_KEY' } as Record<string,string>)[p.id] || 'variable del proveedor',
+          ultimoResultado: ultimosResultados.get(p.id) || null
+        }))
+      });
+    }
+
+    if (url.pathname === '/health/providers' && req.method === 'GET') {
+      const resultados = PROVEEDORES.map(p => ({
+        proveedor: p.id, configurado: Boolean(p.key),
+        resultado: ultimosResultados.get(p.id) || null
+      }));
+      return json({
+        ok: true, comprobadoEn: new Date().toISOString(),
+        resumen: {
+          total: resultados.length,
+          conClave: resultados.filter(x => x.configurado).length,
+          pruebasExitosas: resultados.filter(x => x.resultado?.estado === 'conectado').length,
+          errores: resultados.filter(x => x.resultado?.estado === 'error').length,
+          sinClave: resultados.filter(x => !x.configurado).length
+        },
+        proveedores: resultados
+      });
+    }
+
+    const testMatch = url.pathname.match(/^\\/providers\\/([a-z0-9_-]+)\\/test$/i);
+    if (testMatch && req.method === 'POST') {
+      const proveedor = PROVEEDORES.find(p => p.id === testMatch[1].toLowerCase());
+      if (!proveedor) return json({ error: { message: 'Proveedor desconocido. Consulta GET /providers para ver los identificadores válidos.' } }, 404);
+      const resultado = await probarProveedor(proveedor);
+      return json(resultado, resultado.estado === 'error' ? 502 : resultado.estado === 'sin_clave' ? 503 : 200);
+    }
 
     if (url.pathname === '/health' || url.pathname === '/') {
       const lista = conClave();
